@@ -117,9 +117,9 @@ public:
 
 protected:
   virtual void setActiveItem(int);
-  virtual void setActiveItem(const Rect &, Item &);
+  virtual void setActiveItem(const Rect &, Item &, bool);
   virtual void showActiveSubmenu();
-  virtual void showSubmenu(const Rect &, const Item &, bool = true);
+  virtual void showSubmenu(const Rect &, const Item &, bool);
   virtual void updateSize();
 
   virtual void buttonPressEvent(XEvent *);
@@ -155,9 +155,10 @@ private:
   void clickActiveItem();
   int lookupItem(const string &);
 
-  Pixmap title_pixmap, items_pixmap, highlight_pixmap;
-  Rect title_rect;
-  Rect items_rect;
+  Pixmap title_pixmap, frame_pixmap, highlight_pixmap;
+  Rect title_rect; // rect of the title label
+  Rect frame_rect; // rect of the frame containing the items
+  Rect items_rect; // rect of just the items without the frame
   typedef std::list<Item> Items;
   Items items;
   Basemenu *parent_menu, *current_submenu;
