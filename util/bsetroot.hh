@@ -1,3 +1,26 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
+// bsetroot.hh for Blackbox - an X11 Window manager
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS IN THE SOFTWARE.
+
 #ifndef   __bsetroot2_hh
 #define   __bsetroot2_hh
 
@@ -8,25 +31,29 @@
 class bsetroot : public BaseDisplay {
 private:
   BImageControl **img_ctrl;
-  Pixmap *pixmaps;
 
   char *fore, *back, *grad;
 
+  // no copying!!
+  bsetroot(const bsetroot &);
+  bsetroot& operator=(const bsetroot&);
 
 protected:
-  inline virtual void process_event(XEvent *) { }
+  inline virtual void process_event(XEvent * /*unused*/) { }
 
- 
 public:
-  bsetroot(int, char **, char * = 0);
+  bsetroot(int argc, char **argv, char *dpy_name = 0);
   ~bsetroot(void);
 
-  inline virtual Bool handleSignal(int) { return False; }
+  inline virtual const Bool handleSignal(int /*unused*/) { return False; }
+
+  void setPixmapProperty(int screen, Pixmap pixmap);
+  Pixmap duplicatePixmap(int screen, Pixmap pixmap, int width, int height);
 
   void gradient(void);
-  void modula(int, int);
+  void modula(int x, int y);
   void solid(void);
-  void usage(int = 0);
+  void usage(int exit_code = 0);
 };
 
 

@@ -1,7 +1,7 @@
 dnl configure.in for Blackbox - an X11 Window manager
 dnl Initialize autoconf and automake
 AC_INIT(src/blackbox.cc)
-AM_INIT_AUTOMAKE(blackbox,0.62.1pre0,no-define)
+AM_INIT_AUTOMAKE(blackbox,moving_target,no-define)
 
 dnl Determine default prefix
 test x$prefix = "xNONE" && prefix="$ac_default_prefix"
@@ -83,40 +83,6 @@ fi
 AC_SUBST(SHAPE)
 
 LIBS="$LIBS $Xext_lib"
-
-dnl Check for the Slit
-SLIT=""
-AC_MSG_CHECKING([whether to include the Slit])
-AC_ARG_ENABLE(
-  slit, [  --enable-slit           include code for the Slit [default=yes]],
-  if test x$enableval = "xyes"; then
-    AC_MSG_RESULT([yes])
-    SLIT="-DSLIT"
-  else
-    AC_MSG_RESULT([no])
-  fi,
-  AC_MSG_RESULT([yes])
-  SLIT="-DSLIT"
-)
-AC_SUBST(SLIT)
-
-dnl Check for the new WM Spec
-NEWWMSPEC=""
-AC_MSG_CHECKING([whether to include the new WM Spec (DOES NOTHING)])
-AC_ARG_ENABLE(
-  newspec,
-[  --enable-newspec        include code for the new WM Spec (DOES NOTHING)
-                          [default=no]],
-  if test x$enableval = "xyes"; then
-    AC_MSG_RESULT([yes])
-    NEWWMSPEC="-DNEWWMSPEC"   
-  else
-    AC_MSG_RESULT([no])
-  fi,
-  AC_MSG_RESULT([no])
-)
-AC_SUBST(NEWWMSPEC)
-
 
 dnl Check for Interlacing
 INTERLACE=""
@@ -249,4 +215,5 @@ nls/sl_SI/Makefile
 nls/sv_SE/Makefile
 nls/tr_TR/Makefile
 nls/zh_CN/Makefile
+nls/zh_TW/Makefile
 version.h)
