@@ -59,7 +59,7 @@
 % specifying a logfile name with  a `.gz' (or a `.Z') suffix. This means
 % that gnuzip (resp. compress) is used to compress the output.
 
-log ccmalloc.log
+%log ccmalloc.log
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % `logpid' specify the logfile
