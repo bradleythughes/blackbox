@@ -2,16 +2,16 @@ $set 9 #Window
 
 
 $ #Creating
-# BlackboxWindow::BlackboxWindow : 0x%lx'i yarat#_yorum\n
+# BlackboxWindow::BlackboxWindow : 0x%lx oluþturuluyor\n
 $ #XGetWindowAttributesFail
 # BlackboxWindow::BlackboxWindow : XGetWindowAttributres baþarýsýz oldu\n
 $ #CannotFindScreen
-# BlackboxWindow::BlackboxWindow : 0x%lx ana penceresi için ekraný belirleyemedim\n
+# BlackboxWindow::BlackboxWindow : 0x%lx kök penceresi için ekran bulunamadý\n
 $ #Unnamed
-# Isimsiz
+# Adsýz
 $ #MapRequest
-# 0x%lx için BlackboxWindow::mapRequestEvent()\n
+# BlackboxWindow::0x%lx için mapRequestEvent()\n
 $ #UnmapNotify
-# 0x%lx için BlackboxWindow::unmapNotifyEvent()\n
-$ #UnmapNotifyReparent
-# BlackboxWindow::unmapnotifyEvent: 0x%lx'i ana pencereyi boya\n
+#BlackboxWindow::0x%lx için unmapNotifyEvent()\n
+$ #ReparentNotify
+# BlackboxWindow::reparentNotifyEvent: 0x%lx'i 0x%1x'e yeniden ebeveynle\n

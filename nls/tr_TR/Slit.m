@@ -1,8 +1,8 @@
 $set 7 #Slit
 
 $ #SlitTitle
-# Slit
+# Yarýk
 $ #SlitDirection
-# Slit yönü
+# Yarýk Yönü
 $ #SlitPlacement
-# Slit yerleþimi
+# Yarýk Yerleþimi

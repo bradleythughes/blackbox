@@ -8,7 +8,7 @@ $ #No
 $ #DirectionTitle
 # Yön
 $ #DirectionHoriz
-# Ufki
+# Yatay
 $ #DirectionVert
 # Dikey
 
@@ -18,18 +18,21 @@ $ #AlwaysOnTop
 $ #PlacementTitle
 # Yerleþim
 $ #PlacementTopLeft
-# Sol üst
+# Üst Sol
 $ #PlacementCenterLeft
-# Sol orta 
+# Orta Sol
 $ #PlacementBottomLeft
-# Sol alt
+# Alt Sol
 $ #PlacementTopCenter
-# Üst orta
+# Üst Orta
 $ #PlacementBottomCenter
-# Alt orta
+# Alt Orta
 $ #PlacementTopRight
-# Sað üst
+# Üst Sað
 $ #PlacementCenterRight
-# Sað orta
+# Orta Sað
 $ #PlacementBottomRight
-# Sað üst
+# Alt Sað
+
+$ #AutoHide
+# Otogizle

@@ -1,5 +1,6 @@
+// -*- mode: C++; indent-tabs-mode: nil; -*-
 // main.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh@debian.org>
 // Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -20,29 +21,24 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-// stupid macros needed to access some functions in version 2 of the GNU C
-// library
-#ifndef   _GNU_SOURCE
-#define   _GNU_SOURCE
-#endif // _GNU_SOURCE
-
 #include "../version.h"
 
 #ifdef    HAVE_CONFIG_H
 #  include "../config.h"
 #endif // HAVE_CONFIG_H
 
-#include "i18n.hh"
-#include "blackbox.hh"
-
+extern "C" {
 #ifdef    HAVE_STDIO_H
 #  include <stdio.h>
 #endif // HAVE_STDIO_H
 
-#ifdef    STDC_HEADERS
+#ifdef HAVE_STDLIB_H
 #  include <stdlib.h>
+#endif // HAVE_STDLIB_H
+
+#ifdef HAVE_STRING_H
 #  include <string.h>
-#endif // STDC_HEADERS
+#endif // HAVE_STRING_H
 
 #ifdef    HAVE_UNISTD_H
 #include <sys/types.h>
@@ -51,62 +47,53 @@
 #ifdef    HAVE_SYS_PARAM_H
 #  include <sys/param.h>
 #endif // HAVE_SYS_PARAM_H
+}
 
-#ifndef   MAXPATHLEN
-#define   MAXPATHLEN 255
-#endif // MAXPATHLEN
+#include <string>
+using std::string;
 
+#include "i18n.hh"
+#include "blackbox.hh"
+
+
+I18n i18n; // initialized in main
 
 static void showHelp(int exitval) {
   // print program usage and command line options
-  printf(i18n->getMessage(mainSet, mainUsage,
-			  "Blackbox %s : (c) 2001 Sean 'Shaleh' Perry\n"
-			  "\t\t\t  1997 - 2000 Brad Hughes\n\n"
-			  "  -display <string>\t\tuse display connection.\n"
-			  "  -rc <string>\t\t\tuse alternate resource file.\n"
-			  "  -version\t\t\tdisplay version and exit.\n"
-			  "  -help\t\t\t\tdisplay this help text and exit.\n\n"),
-	 __blackbox_version);
+  printf(i18n(mainSet, mainUsage,
+              "Blackbox %s : (c) 2001 - 2002 Sean 'Shaleh' Perry\n"
+              "\t\t\t    1997 - 2000, 2002 Brad Hughes\n\n"
+              "  -display <string>\t\tuse display connection.\n"
+              "  -rc <string>\t\t\tuse alternate resource file.\n"
+              "  -version\t\t\tdisplay version and exit.\n"
+              "  -help\t\t\t\tdisplay this help text and exit.\n\n"),
+         __blackbox_version);
 
   // some people have requested that we print out compile options
   // as well
-  fprintf(stdout,i18n->getMessage(mainSet, mainCompileOptions,
-				  "Compile time options:\n"
-				  "  Debugging:\t\t\t%s\n"
-				  "  Interlacing:\t\t\t%s\n"
-				  "  Shape:\t\t\t%s\n"
-				  "  Slit:\t\t\t\t%s\n"
-				  "  8bpp Ordered Dithering:\t%s\n\n"),
+  printf(i18n(mainSet, mainCompileOptions,
+              "Compile time options:\n"
+              "  Debugging:\t\t\t%s\n"
+              "  Shape:\t\t\t%s\n"
+              "  8bpp Ordered Dithering:\t%s\n\n"),
 #ifdef    DEBUG
-	  i18n->getMessage(CommonSet, CommonYes, "yes"),
+         i18n(CommonSet, CommonYes, "yes"),
 #else // !DEBUG
-	  i18n->getMessage(CommonSet, CommonNo, "no"),
+         i18n(CommonSet, CommonNo, "no"),
 #endif // DEBUG
 
-#ifdef    INTERLACE
-	  i18n->getMessage(CommonSet, CommonYes, "yes"),
-#else // !INTERLACE
-	  i18n->getMessage(CommonSet, CommonNo, "no"),
-#endif // INTERLACE
-
 #ifdef    SHAPE
-	  i18n->getMessage(CommonSet, CommonYes, "yes"),
+         i18n(CommonSet, CommonYes, "yes"),
 #else // !SHAPE
-	  i18n->getMessage(CommonSet, CommonNo, "no"),
+         i18n(CommonSet, CommonNo, "no"),
 #endif // SHAPE
 
-#ifdef    SLIT
-	  i18n->getMessage(CommonSet, CommonYes, "yes"),
-#else // !SLIT
-	  i18n->getMessage(CommonSet, CommonNo, "no"),
-#endif // SLIT
-
 #ifdef    ORDEREDPSEUDO
-	  i18n->getMessage(CommonSet, CommonYes, "yes")
+         i18n(CommonSet, CommonYes, "yes")
 #else // !ORDEREDPSEUDO
-	  i18n->getMessage(CommonSet, CommonNo, "no")
+         i18n(CommonSet, CommonNo, "no")
 #endif // ORDEREDPSEUDO
-	  );
+          );
 
   ::exit(exitval);
 }
@@ -114,8 +101,9 @@ static void showHelp(int exitval) {
 int main(int argc, char **argv) {
   char *session_display = (char *) 0;
   char *rc_file = (char *) 0;
+  bool single_screen = False;
 
-  NLSInit("blackbox.cat");
+  i18n.openCatalog("blackbox.cat");
 
   for (int i = 1; i < argc; ++i) {
     if (! strcmp(argv[i], "-rc")) {
@@ -123,8 +111,8 @@ int main(int argc, char **argv) {
 
       if ((++i) >= argc) {
         fprintf(stderr,
-		i18n->getMessage(mainSet, mainRCRequiresArg,
-				 "error: '-rc' requires and argument\n"));
+                i18n(mainSet, mainRCRequiresArg,
+                                 "error: '-rc' requires and argument\n"));
 
         ::exit(1);
       }
@@ -135,31 +123,31 @@ int main(int argc, char **argv) {
       // set by the environment variable DISPLAY
 
       if ((++i) >= argc) {
-	fprintf(stderr,
-		i18n->getMessage(mainSet, mainDISPLAYRequiresArg,
-				 "error: '-display' requires an argument\n"));
+        fprintf(stderr,
+                i18n(mainSet, mainDISPLAYRequiresArg,
+                                 "error: '-display' requires an argument\n"));
 
-	::exit(1);
+        ::exit(1);
       }
 
       session_display = argv[i];
-      char dtmp[MAXPATHLEN];
-      sprintf(dtmp, "DISPLAY=%s", session_display);
+      string dtmp = "DISPLAY=";
+      dtmp += session_display;
 
-      if (putenv(dtmp)) {
-	fprintf(stderr,
-		i18n->
-		getMessage(mainSet, mainWarnDisplaySet,
-		   "warning: couldn't set environment variable 'DISPLAY'\n"));
-	perror("putenv()");
+      if (putenv(const_cast<char*>(dtmp.c_str()))) {
+        fprintf(stderr, i18n(mainSet, mainWarnDisplaySet,
+                "warning: couldn't set environment variable 'DISPLAY'\n"));
+        perror("putenv()");
       }
     } else if (! strcmp(argv[i], "-version")) {
       // print current version string
-      printf("Blackbox %s : (c) 1997 - 2000 Brad Hughes\n"
-	     "\t\t\t  2001 - 2002 Sean 'Shaleh' Perry\n",
+      printf("Blackbox %s : (c) 2001 - 2002 Sean 'Shaleh' Perry\n",
+             "\t\t\t   1997 - 2000 Brad Hughes\n"
              __blackbox_version);
 
       ::exit(0);
+    } else if (! strcmp(argv[i], "-single")) {
+      single_screen = True;
     } else if (! strcmp(argv[i], "-help")) {
       showHelp(0);
     } else { // invalid command line option
@@ -171,7 +159,7 @@ int main(int argc, char **argv) {
   _chdir2(getenv("X11ROOT"));
 #endif // __EMX__
 
-  Blackbox blackbox(argc, argv, session_display, rc_file);
+  Blackbox blackbox(argv, session_display, rc_file, single_screen);
   blackbox.eventLoop();
 
   return(0);

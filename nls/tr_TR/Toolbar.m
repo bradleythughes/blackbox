@@ -15,8 +15,8 @@ $ #NoStrftimeTimeFormatP
 $ #NoStrftimeTimeFormatA
 # a
 $ #ToolbarTitle
-# Blackbox çubuðu
+# Alet Çubuðu
 $ #EditWkspcName
 # Geçerli masaüstü ismini deðiþtir
 $ #ToolbarPlacement
-# Blackbox çubuðunun yerleþimi
+# Alet Çubuðu Yerleþimi

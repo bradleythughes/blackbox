@@ -1,21 +1,21 @@
 $set 14 #main
 
 $ #RCRequiresArg
-# hata : '-rc' bir argüman bekler\n
+# hata : '-rc' bir argüman gerektirir\n
 $ #DISPLAYRequiresArg
-# hata : '-display' bir argüman bekler\n
+# hata : '-display' bir argüman gerektirir\n
 $ #WarnDisplaySet
-# ikaz : 'DISPLAY' verisini oturtamadým\n
+# uyarý: 'DISPLAY' çevre deðiþkeni kurulamadý\n
 $ #Usage
-# Blackbox %s: (c) 1997 - 2000 Brad Hughes\n\n\
-  -display <metin>\t\tekraný kullan.\n\
-  -rc <metin>\t\t\tbaþka bir ayarlama dosyasýný kullan.\n\
-  -version\t\t\tnesil bilgisini gösterir ve çýkar.\n\
-  -help\t\t\t\tbu yardým iletisini gösterir ve çýkar.\n\n
+# Blackbox %s: (c) 2001 - 2002 Sean 'Shaleh' Perry\n\n\
+  \t\t\t 1997 - 2000, 2002 Brad Hughes\n\n\
+  -display <dizge>\t\tgörüntü baðlantýsýný kullanýr.\n\
+  -rc <dizge>\t\t\tbaþka bir kaynak dosyasý kullanýr.\n\
+  -version\t\t\tsürümü gösterir ve çýkar.\n\
+  -help\t\t\t\tbu yardým metnini gösterir ve çýkar.\n\n
 $ #CompileOptions
-# Denetleme seçenekleri :\n\
-  Bilgilendirme\t\t\t%s\n\
-  Týzlama:\t\t\t%s\n\
-  Gölgeleme:\t\t\t%s\n\
-  Slit:\t\t\t\t%s\n\
-  R8b'e göre týzla:\t%s\n\n
+# Derleme seçenekleri :\n\
+  Hata ayýklama\t\t\t%s\n\
+  Þekil:\t\t\t%s\n\
+  8bpp Sýralý Kýpýrtýlandýrma:\t%s\n\n
+  

@@ -1,24 +1,24 @@
 $set 5 #Image
 
 $ #ErrorCreatingSolidPixmap
-# BImage::render_solid : resmi yaratamadým\n
+# BImage::render_solid : pixmap oluþturmada hata\n
 $ #ErrorCreatingXImage
-# BImage::renderXImage : XImage'i yaratamadým\n
+# BImage::renderXImage : XImage oluþturmada hata\n
 $ #UnsupVisual
-# BImage::renderXImage : desteklenmeyen görünüþ( renk derinliði )\n
+# BImage::renderXImage : desteklenmeyen görsel (araç)\n
 $ #ErrorCreatingPixmap
-# BImage::renderPixmap : resmi yaratamadým\n
+# BImage::renderPixmap : pixmap oluþturmada hata\n
 $ #InvalidColormapSize
-# BImageControl::BImageControl : geçersiz renk haritasý büyüklüðü %d (%d/%d/%d) - azaltýyorum\n
+# BImageControl::BImageControl : geçersiz renk haritasý boyutu %d (%d/%d/%d) - azaltýlýyor\n
 $ #ErrorAllocatingColormap
-# BImageControl::BImageControl : renk haritasý ayrýlanamadý\n
+# BImageControl::BImageControl : renk haritasý atamada hata\n
 $ #ColorAllocFail
-# BImageControl::BImageControl : rengi ayrýrken hata oldu : %d/%d/%d\n
+# BImageControl::BImageControl : renk atanamadý %d/%d/%d\n
 $ #PixmapRelease
-# BImageControl::~BImageControl : resim arabelleði - %d resim temizlendi\n
+# BImageControl::~BImageControl : pixmap önbelleði - %d pixmap serbestleþtiriliyor\n
 $ #PixmapCacheLarge
-# BImageControl::renderImage : arabellek büyük, temizlemeye baþlýyorum\n
+# BImageControl::renderImage : önbellek büyük, temizlemeye zorlanýyor\n
 $ #ColorParseError
-# BImageControl::getColor : renk tarama hatasý : '%s'\n
+# BImageControl::getColor : renk ayrýþtýrma hatasý : '%s'\n
 $ #ColorAllocError
-# BImageControl::getColor : renk ayýrma hatasý : '%s'\n
+# BImageControl::getColor : renk atama hatasý : '%s'\n

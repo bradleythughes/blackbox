@@ -5,16 +5,16 @@ $ #SendTo
 $ #Shade
 # Topla
 $ #Iconify
-# Ikonalaþtýr
+# Simgeleþtir
 $ #Maximize
-# Azamileþtir
+# Ekraný Kapla
 $ #Raise
-# Alçalt
-$ #Lower
 # Yükselt
+$ #Lower
+# Alçalt
 $ #Stick
-# Yapýþýk
+# Yapýþtýr
 $ #KillClient
-# Öldür
+# Ýstemciyi Öldür
 $ #Close
 # Kapat

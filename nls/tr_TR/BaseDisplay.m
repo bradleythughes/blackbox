@@ -1,16 +1,16 @@
 $set 1 #BaseDisplay
 
 $ #XError
-# %s : X hatasý : %s ( %d ) opkodlar %d/%d\n  kaynak 0x%lx\n
+# %s : X hatasý : %s ( %d ) opkodlarý %d/%d\n  kaynak 0x%lx\n
 $ #SignalCaught
 # %s : %d sinyali alýndý \n
 $ #ShuttingDown
-# kapatýlýyorum\n
+# Bilgisayar kapatýlýyor\n
 $ #Aborting
-# kapatýlýyorum ... çöküntüyü býrakýyorum\n
+# yarýda kesiliyor ...çekirdek boþaltýlýyor\n
 $ #XConnectFail
-# BaseDisplay::BaseDisplay : X sunucusuna baðlanýlýnamadý .\n
+# BaseDisplay::BaseDisplay : X sunucusuna baðlanýlamadý .\n
 $ #CloseOnExecFail
-# BaseDisplay::BaseDisplay : çalýþtýrýrken kapatmada ekrana baðlanýlýnamadý \n
+# BaseDisplay::BaseDisplay : çalýþýrken kapatmada görüntü baðlantýsý iþaretlenemedi \n
 $ #BadWindowRemove
-# BaseDisplay::eventLoop() : eylem kuyruðundaki 'kötü' pencereyi siliyorum \n
+# BaseDisplay::eventLoop() : olay kuyruðundaki kötü pencere siliniyor \n

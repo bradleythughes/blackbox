@@ -3,36 +3,40 @@ $set 3 #Configmenu
 $ #ConfigOptions
 # Ayarlar
 $ #FocusModel
-# Foküsleme
+# Odak Modeli
 $ #WindowPlacement
-# Pencere yerleþimi
+# Pencere Yerleþimi
 $ #ImageDithering
-# Resim oluþturmasý
+# Resim Kýpýrtýlandýrma
 $ #OpaqueMove
-# Ekraný içerikli taþý
+# Ekraný Ýçerikli Taþýma
 $ #FullMax
-# Tam ekranla, vallahi
+# Tam Ekranlama
 $ #FocusNew
-# Yeni pencereleri foküsle
+# Yeni Pencereleri Odakla
 $ #FocusLast
-# Masaüstündeki son pencereyi foküsle
+# Masaüstü Deðiþtiðinde Pencereyi Odakla
+$ #DisableBindings
+# Kaydýrma Kilidiyle Ýliþkilendirmeleri Devre Dýþý Býrak
 $ #ClickToFocus
-# Týklayarak foküsle
+# Odaklamak için Týkla
 $ #SloppyFocus
-# Aðýr foküsle
+# Gevþek Odaklama
 $ #AutoRaise
-# Otomatikman yükselt
+# Oto Yükselt
+$ #ClickRaise
+# Týkla Yükselt
 $ #SmartRows
-# Akýllý yerleþim( Sýralar )
+# Akýllý Yerleþim (Sýralar)
 $ #SmartCols
-# Akýllý yerleþim( Sütunlar )
+# Akýllý Yerleþim (Sütunlar)
 $ #Cascade
-# Cascade Placement
+# Ardýþýk Yerleþim
 $ #LeftRight
-# Soldan saða
+# Soldan Saða
 $ #RightLeft
-# Saðdan sola
+# Saðdan Sola
 $ #TopBottom
-# Üstten aþaða
+# Yukarýdan Aþaðýya
 $ #BottomTop
-# Alttan üste
+# Aþaðýdan Yukarýya

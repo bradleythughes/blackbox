@@ -110,8 +110,10 @@ static int anotherWMRunning(Display *display, XErrorEvent *) {
 }
 
 
-BScreen::BScreen(Blackbox *bb, unsigned int scrn) : ScreenInfo(bb, scrn) {
+BScreen::BScreen(Blackbox *bb, unsigned int scrn) {
   blackbox = bb;
+
+  ScreenInfo::initialize(blackbox, scrn);
 
   event_mask = ColormapChangeMask | EnterWindowMask | PropertyChangeMask |
     SubstructureRedirectMask | ButtonPressMask | ButtonReleaseMask;

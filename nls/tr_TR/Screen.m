@@ -1,49 +1,50 @@
 $set 6 #Screen
 
 $ #AnotherWMRunning
-# BScreen::BScreen : X sunucusunu sorgularken hata oldu.\n  \
-%s ekranýnda baþka bir pencere yöneticisi çalýþýyor gibi.\n
+# BScreen::BScreen : X sunucusunu sorgularken hata oluþtu.\n  \
+%s ekranýnda baþka bir pencere yöneticisi zaten çalýþýyor.\n
 $ #ManagingScreen
-# BScreen::BScreen : %d ekraný, 0x%lx görünümüyle , %d derinliðiyle\n
+# BScreen::BScreen : %d ekraný, 0x%lx görünümü, %d derinliðiyle yönetiliyor\n
 $ #FontLoadFail
-# BScreen::LoadStyle() : '%s' yazý tipi yüklenemedi.\n
+# BScreen::LoadStyle() : '%s' yazý tipi yüklenemedi\n
 $ #DefaultFontLoadFail
-# BScreen::LoadStyle(): önayarlý yazý tipi yüklenemedi.\n
+# BScreen::LoadStyle(): öntanýmlý yazý tipi yüklenemedi.\n
 $ #EmptyMenuFile
-# %s : boþ mönü dosyasý\n
+# %s : boþ menü dosyasý\n
 $ #xterm
-# X komutasý
+# x uçbirimi (xterm)
 $ #Restart
 # Yeniden baþla
 $ #Exit
-# Çýk
+# Çýkýþ
 $ #EXECError
-# BScreen::parseMenuFile : [exec] hatasý, mönü yaftasý ve/yada komuta belirlenmedi\n
+# BScreen::parseMenuFile : [exec] hatasý, menü etiketi ve/veya komut tanýmlanmamýþ\n
 $ #EXITError
-# BScreen::parseMenuFile : [exit] hatasý, mönü yaftasý belirlenmedi\n
+# BScreen::parseMenuFile : [exit] hatasý, menü etiketi tanýmlanmamýþ\n
 $ #STYLEError
-# BScreen::parseMenuFile : [style] hatasý, mönü yaftasý ve/yada dosya adý belirlenmedi\n
+# BScreen::parseMenuFile : [style] hatasý, menü etiketi ve/veya dosya adý \
+tanýmlanmamýþ\n
 $ #CONFIGError
-# BScreen::parseMenuFile: [config] hatasý, mönü yaftasý belirlenmedi\n
+# BScreen::parseMenuFile: [config] hatasý, menü etiketi tanýmlanmamýþ\n
 $ #INCLUDEError
-# BScreen::parseMenuFile: [include] hatasý, dosya adý belirlenmedi\n
+# BScreen::parseMenuFile: [include] hatasý, dosya adý tanýmlanmamýþ\n
 $ #INCLUDEErrorReg
-# BScreen::parseMenuFile: [include] hatasý, '%s' vasat bir dosya deðil\n
+# BScreen::parseMenuFile: [include] hatasý, '%s' sýradan bir dosya deðil\n
 $ #SUBMENUError
-# BScreen::parseMenuFile: [submenu] hatasý, mönü yaftasý belirlenmedi\n
+# BScreen::parseMenuFile: [submenu] hatasý, menü etiketi tanýmlanmamýþ\n
 $ #RESTARTError
-# BScreen::parseMenuFile: [restart] hatasý, mönü yaftasý belirlenmedi\n
+# BScreen::parseMenuFile: [restart] hatasý, menü etiketi tanýmlanmamýþ\n
 $ #RECONFIGError
-# BScreen::parseMenuFile: [reconfig] hatasý, mönü yaftasý belirlenmedi\n
+# BScreen::parseMenuFile: [reconfig] hatasý, menü etiketi tanýmlanmamýþ\n
 $ #STYLESDIRError
-# BScreen::parseMenuFile: [stylesdir/stylesmenu] hatasý, dizin adý belirlenmedi\n
+# BScreen::parseMenuFile: [stylesdir/stylesmenu] hatasý, dizin tanýmlanmamýþ\n
 $ #STYLESDIRErrorNotDir
 # BScreen::parseMenuFile: [stylesdir/stylesmenu] hatasý, '%s' bir dizin \
-deðildir\n
+deðil\n
 $ #STYLESDIRErrorNoExist
-# BScreen::parseMenuFile: [stylesdir/stylesmenu] hatasý, '%s' var deðil\n
+# BScreen::parseMenuFile: [stylesdir/stylesmenu] hatasý, '%s' yok\n
 $ #WORKSPACESError
-# BScreen::parseMenuFile: [workspaces] hatasý, mönü yaftasý belirlenmedi\n
+# BScreen::parseMenuFile: [workspaces] hatasý, menü etiketi tanýmlanmamýþ\n
 $ #PositionLength
 # 0: 0000 x 0: 0000
 $ #PositionFormat
