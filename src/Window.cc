@@ -3051,7 +3051,7 @@ void BlackboxWindow::changeBlackboxHints(const BlackboxHints *net) {
     if (flags.maximized) {
       maximize(0);
     } else {
-      int button = 0;
+      unsigned int button = 0;
 
       if (net->flags & AttribMaxHoriz && net->flags & AttribMaxVert &&
           net->attrib & (AttribMaxHoriz | AttribMaxVert))
@@ -3060,8 +3060,8 @@ void BlackboxWindow::changeBlackboxHints(const BlackboxHints *net) {
         button = 2;
       else if (net->flags & AttribMaxHoriz && net->attrib & AttribMaxHoriz)
         button = 3;
-
-      maximize(button);
+      if (button)
+        maximize(button);
     }
   }
 
