@@ -1590,24 +1590,19 @@ void BlackboxWindow::show(void) {
 }
 
 
-void BlackboxWindow::deiconify(bool reassoc, bool raise) {
-  if (client.state.iconic || reassoc)
-    screen->restackWindow(this);
-
+void BlackboxWindow::deiconify(void) {
   if (client.state.iconic)
     screen->removeIcon(this);
 
   show();
 
-  // reassociate and deiconify all transients
-  if (reassoc && ! client.transientList.empty()) {
+  if (! client.transientList.empty()) {
     BlackboxWindowList::iterator it, end = client.transientList.end();
     for (it = client.transientList.begin(); it != end; ++it)
-      (*it)->deiconify(True, False);
+      if ((*it)->isIconic()) (*it)->deiconify();
   }
 
-  if (raise)
-    screen->raiseWindow(this);
+  screen->raiseWindow(this);
 }
 
 
@@ -2285,7 +2280,7 @@ void BlackboxWindow::clientMessageEvent(const XClientMessageEvent* const ce) {
       deiconify();
   } else if (ce->message_type == netwm.activeWindow()) {
     if (client.state.iconic)
-      deiconify(False, False);
+      deiconify();
 
     if (setInputFocus()) {
       screen->raiseWindow(this);
@@ -3114,6 +3109,16 @@ void BlackboxWindow::restore(bool remap) {
   }
 
   if (remap) XMapWindow(blackbox->getXDisplay(), client.window);
+}
+
+
+void BlackboxWindow::changeLayer(WMLayer new_layer) {
+  if (client.state.layer == new_layer)
+    return;
+
+  screen->unstackWindow(this);
+  client.state.layer = new_layer;
+  screen->raiseWindow(this);
 }
 
 

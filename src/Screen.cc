@@ -860,7 +860,9 @@ void BScreen::raiseWindow(BlackboxWindow *w) {
 
   if (! win->isIconic()) {
     stack_vector.push_back(win->getFrameWindow());
-    stackingList->remove(win);
+    if (std::find(stackingList->begin(),
+                  stackingList->end(), win) != stackingList->end())
+      stackingList->remove(win);
     stackingList->insert(win);
   }
 
@@ -981,8 +983,8 @@ BScreen::raiseWindows(const bt::Netwm::WindowList* const workspace_stack) {
 }
 
 
-void BScreen::restackWindow(BlackboxWindow* w) {
-  stackingList->insert(w);
+void BScreen::unstackWindow(BlackboxWindow* w) {
+  stackingList->remove(w);
 }
 
 

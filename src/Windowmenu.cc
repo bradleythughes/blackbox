@@ -32,52 +32,47 @@
 #include "i18n.hh"
 
 
-class SendToWorkspacemenu : public bt::Menu {
-public:
-  SendToWorkspacemenu(bt::Application &app, unsigned int screen,
-                      BlackboxWindow *window);
-
-  void refresh(void);
-
-protected:
-  virtual void itemClicked(unsigned int id, unsigned int button);
-
-private:
-  BlackboxWindow *_window;
-};
-
-
 Windowmenu::Windowmenu(bt::Application &app, unsigned int screen,
                        BlackboxWindow *window)
   : bt::Menu(app, screen), _window(window) {
 
   insertItem(bt::i18n(WindowmenuSet, WindowmenuShade, "Shade"),
-             BScreen::WindowShade);
+             Shade);
   insertItem(bt::i18n(WindowmenuSet, WindowmenuIconify, "Iconify"),
-             BScreen::WindowIconify);
+             Iconify);
   insertItem(bt::i18n(WindowmenuSet, WindowmenuMaximize, "Maximize"),
-             BScreen::WindowMaximize);
+             Maximize);
   insertItem(bt::i18n(WindowmenuSet, WindowmenuRaise, "Raise"),
-             BScreen::WindowRaise);
+             Raise);
   insertItem(bt::i18n(WindowmenuSet, WindowmenuLower, "Lower"),
-             BScreen::WindowLower);
+             Lower);
+  insertItem("Always on Top", OnTop);
+  insertItem("Always on Bottom", OnBottom);
   insertSeparator();
   insertItem(bt::i18n(WindowmenuSet, WindowmenuKillClient, "Kill Client"),
-             BScreen::WindowKill);
+             Kill);
   insertItem(bt::i18n(WindowmenuSet, WindowmenuClose, "Close"),
-             BScreen::WindowClose);
+             Close);
 }
 
 
 void Windowmenu::refresh(void) {
-  setItemEnabled(BScreen::WindowShade, _window->hasTitlebar());
-  setItemChecked(BScreen::WindowShade, _window->isShaded());
+  setItemEnabled(Shade, _window->hasTitlebar());
+  setItemChecked(Shade, _window->isShaded());
 
-  setItemEnabled(BScreen::WindowMaximize, _window->isMaximizable());
-  setItemChecked(BScreen::WindowMaximize, _window->isMaximized());
+  setItemEnabled(Maximize, _window->isMaximizable());
+  setItemChecked(Maximize, _window->isMaximized());
 
-  setItemEnabled(BScreen::WindowIconify, _window->isIconifiable());
-  setItemEnabled(BScreen::WindowClose, _window->isClosable());
+  setItemEnabled(Iconify, _window->isIconifiable());
+  setItemEnabled(Close, _window->isClosable());
+
+  setItemEnabled(OnTop,
+                 _window->getLayer() < BlackboxWindow::LAYER_FULLSCREEN);
+  setItemChecked(OnTop, _window->getLayer() == BlackboxWindow::LAYER_ABOVE);
+
+  setItemEnabled(OnBottom,
+                 _window->getLayer() < BlackboxWindow::LAYER_FULLSCREEN);
+  setItemChecked(OnBottom, _window->getLayer() == BlackboxWindow::LAYER_BELOW);
 }
 
 
@@ -85,69 +80,42 @@ void Windowmenu::itemClicked(unsigned int id, unsigned int button) {
   if (button != 1) return;
 
   switch (id) {
-  case BScreen::WindowShade:
+  case Shade:
     _window->shade();
     break;
 
-  case BScreen::WindowIconify:
+  case Iconify:
     _window->iconify();
     break;
 
-  case BScreen::WindowMaximize:
+  case Maximize:
     _window->maximize(button);
     break;
 
-  case BScreen::WindowClose:
-    _window->close();
-    break;
-
-  case BScreen::WindowRaise: {
+  case Raise:
     _window->getScreen()->raiseWindow(_window);
     break;
-  }
 
-  case BScreen::WindowLower: {
+  case Lower:
     _window->getScreen()->lowerWindow(_window);
     break;
-  }
 
-  case BScreen::WindowKill:
+  case OnTop:
+    _window->changeLayer(BlackboxWindow::LAYER_ABOVE);
+    break;
+
+  case OnBottom:
+    _window->changeLayer(BlackboxWindow::LAYER_BELOW);
+    break;
+
+  case Kill:
     XKillClient(_window->getScreen()->getScreenInfo().getDisplay().XDisplay(),
                 _window->getClientWindow());
     break;
+
+  case Close:
+    _window->close();
+    break;
+
   } // switch
 }
-
-
-#if 0
-SendToWorkspacemenu::SendToWorkspacemenu(bt::Application &app,
-                                         unsigned int screen,
-                                         BlackboxWindow *window)
-  : bt::Menu(app, screen), _window(window) { }
-
-
-void SendToWorkspacemenu::refresh(void) {
-  clear();
-  unsigned workspace_count = _window->getScreen()->getWorkspaceCount();
-  for (unsigned int i = 0; i < workspace_count; ++i)
-    insertItem(_window->getScreen()->getWorkspaceName(i), i);
-
-  /*
-    give a little visual indication to the user about which workspace
-    the window is on.  you obviously can't send a window to that
-    workspace the window is already on, which is why it is checked and
-    disabled
-  */
-  setItemEnabled(_window->getWorkspaceNumber(), false);
-  setItemChecked(_window->getWorkspaceNumber(), true);
-}
-
-
-void SendToWorkspacemenu::itemClicked(unsigned int id, unsigned int button) {
-  if (button > 2) return;
-
-  if (button == 1) _window->withdraw();
-  _window->getScreen()->reassociateWindow(_window, id);
-  if (button == 2) _window->getScreen()->changeWorkspaceID(id);
-}
-#endif

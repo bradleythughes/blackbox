@@ -110,8 +110,8 @@ public:
                     Decor_Close    = (1l << 5) };
   typedef unsigned char DecorationFlags;
 
-  enum WMLayer { LAYER_NORMAL, LAYER_FULLSCREEN, LAYER_ABOVE, LAYER_BELOW,
-                 LAYER_DESKTOP };
+  enum WMLayer { LAYER_DESKTOP, LAYER_BELOW, LAYER_NORMAL, LAYER_ABOVE,
+                 LAYER_FULLSCREEN };
 private:
   Blackbox *blackbox;
   BScreen *screen;
@@ -348,7 +348,7 @@ public:
 
   void setFocusFlag(bool focus);
   void iconify(void);
-  void deiconify(bool reassoc = True, bool raise = True);
+  void deiconify(void);
   void show(void);
   void close(void);
   void withdraw(void);
@@ -361,6 +361,7 @@ public:
   void installColormap(bool install);
   void restore(bool remap);
   void configure(int dx, int dy, unsigned int dw, unsigned int dh);
+  void changeLayer(WMLayer new_layer);
 
   void clientMessageEvent(const XClientMessageEvent * const ce);
   void buttonPressEvent(const XButtonEvent * const be);

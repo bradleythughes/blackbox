@@ -159,8 +159,7 @@ public:
          RightLeft, TopBottom, BottomTop };
   enum { RoundBullet = 1, TriangleBullet, SquareBullet, NoBullet };
   enum { Restart = 1, RestartOther, Exit, Shutdown, Execute, Reconfigure,
-         WindowShade, WindowIconify, WindowMaximize, WindowClose, WindowRaise,
-         WindowLower, WindowKill, SetStyle };
+         SetStyle };
   enum FocusModel { SloppyFocus, ClickToFocus };
 
   BScreen(Blackbox *bb, unsigned int scrn);
@@ -294,7 +293,7 @@ public:
   void lowerWindow(BlackboxWindow *w);
   void propagateWindowName(const BlackboxWindow *w);
   void placeWindow(BlackboxWindow* w);
-  void restackWindow(BlackboxWindow* w);
+  void unstackWindow(BlackboxWindow* w);
 
   void raiseWindows(const bt::Netwm::WindowList* const workspace_stack);
   BlackboxWindow* getNextWindowInList(BlackboxWindow *w) const;
