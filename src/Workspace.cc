@@ -109,15 +109,11 @@ int Workspace::removeWindow(BlackboxWindow *w)
   stackingList->remove(w);
 
   if (w->isFocused()) {
-    if (w->isTransient()) {
-      BlackboxWindow *bw = w->getTransientFor();
-      if (bw && bw->isVisible())
-        bw->setInputFocus();
-    } else {
-      BlackboxWindow *top = stackingList->first();
-      if (! top || ! top->setInputFocus()) {
-	Blackbox::instance()->setFocusedWindow((BlackboxWindow *) 0);
-      }
+    BlackboxWindow *newfocus = 0;
+    if (w->isTransient()) newfocus = w->getTransientFor();
+    if (! newfocus) newfocus = stackingList->first();
+    if (! newfocus || ! newfocus->setInputFocus()) {
+      Blackbox::instance()->setFocusedWindow(0);
     }
   }
 
