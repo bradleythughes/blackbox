@@ -168,7 +168,7 @@ Blackbox::Blackbox(int m_argc, char **m_argv, char *dpy_name, char *rc)
   resource.menu_file = resource.style_file = (char *) 0;
   resource.auto_raise_delay.tv_sec = resource.auto_raise_delay.tv_usec = 0;
 
-  screen_with_mouse = 0;
+  active_screen = 0;
   focused_window = masked_window = (BlackboxWindow *) 0;
   masked = None;
 
@@ -212,7 +212,7 @@ Blackbox::Blackbox(int m_argc, char **m_argv, char *dpy_name, char *rc)
   }
 
   // set the screen with mouse to the first managed screen
-  screen_with_mouse = screenList->first();
+  active_screen = screenList->first();
   setFocusedWindow(0);
 
   XSynchronize(*this, False);
@@ -539,7 +539,6 @@ void Blackbox::process_event(XEvent *e)
     if ((e->xcrossing.window == e->xcrossing.root) &&
         (screen = searchScreen(e->xcrossing.window))) {
       screen->getImageControl()->installRootColormap();
-      screen_with_mouse = screen;
     } else if ((win = searchWindow(e->xcrossing.window))) {
       if (win->getScreen()->isSloppyFocus() &&
           (! win->isFocused()) && (! no_focus)) {
@@ -1650,6 +1649,11 @@ void Blackbox::setFocusedWindow(BlackboxWindow *win)
     tbar = screen->getToolbar();
     wkspc = screen->getWorkspace(win->getWorkspaceNumber());
 
+    // the active screen is the one with the last focused window...
+    // this will keep focus on this screen no matter where the mouse goes,
+    // so multihead keybindings will continue to work on that screen until the
+    // user focuses a window on a different screen.
+    active_screen = screen;
     focused_window = win;
 
     win->setFocusFlag(True);
@@ -1657,9 +1661,9 @@ void Blackbox::setFocusedWindow(BlackboxWindow *win)
   } else {
     focused_window = (BlackboxWindow *) 0;
     if (! old_screen) {
-      if (screen_with_mouse) {
+      if (active_screen) {
         // set input focus to the toolbar of the screen with mouse
-        XSetInputFocus(*blackbox, screen_with_mouse->getToolbar()->getWindowID(),
+        XSetInputFocus(*blackbox, active_screen->getToolbar()->getWindowID(),
                        RevertToPointerRoot, CurrentTime);
       } else {
         // set input focus to the toolbar of the first managed screen
