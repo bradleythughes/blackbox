@@ -452,12 +452,12 @@ BTexture BStyle::readDatabaseTexture(const string &rname, const string &rclass,
     r = texture.color().red() | (texture.color().red() >> 1);
     g = texture.color().green() | (texture.color().green() >> 1);
     b = texture.color().blue() | (texture.color().blue() >> 1);
-    texture.setLightColor(BColor(r, g, b));
+    texture.setLightColor(BColor(r, g, b, screen));
 
     r = (texture.color().red() >> 2) | (texture.color().red() >> 1);
     g = (texture.color().green() >> 2) | (texture.color().green() >> 1);
     b = (texture.color().blue() >> 2) | (texture.color().blue() >> 1);
-    texture.setShadowColor(BColor(r, g, b));
+    texture.setShadowColor(BColor(r, g, b, screen));
   } else if (texture.texture() & BImage_Gradient) {
     texture.setColor(readDatabaseColor(rname + ".color",
                                          rclass + ".Color",
@@ -478,9 +478,9 @@ BColor BStyle::readDatabaseColor(const string &rname, const string &rclass,
   XrmValue value;
   char *value_type;
   if (XrmGetResource(stylerc, rname.c_str(), rclass.c_str(), &value_type, &value))
-    color = BColor(value.addr);
+    color = BColor(value.addr, screen);
   else
-    color = BColor(default_color);
+    color = BColor(default_color, screen);
   color.setScreen(screen);
   return color;
 }

@@ -2523,8 +2523,10 @@ void BlackboxWindow::buttonReleaseEvent(XButtonEvent *re) {
     blackbox->maskWindowEvents(0, (BlackboxWindow *) 0);
 
     if (! screen->doOpaqueMove()) {
-      BGCCache::Item &gc = BGCCache::instance()->find( BColor( "orange" ), 0, GXxor,
-                                                       IncludeInferiors );
+      BGCCache::Item &gc =
+        BGCCache::instance()->find( BColor( "orange",
+                                            screen->screenInfo()->screenNumber()),
+                                    0, GXxor, IncludeInferiors );
       XDrawRectangle(*blackbox, screen->screenInfo()->rootWindow(), gc.gc(),
                      frame.move_x, frame.move_y, frame.resize_w,
                      frame.resize_h);
@@ -2538,8 +2540,10 @@ void BlackboxWindow::buttonReleaseEvent(XButtonEvent *re) {
     screen->hideGeometry();
     XUngrabPointer(*blackbox, CurrentTime);
   } else if (flags.resizing) {
-    BGCCache::Item &gc = BGCCache::instance()->find( BColor( "orange" ), 0, GXxor,
-                                                     IncludeInferiors );
+      BGCCache::Item &gc =
+        BGCCache::instance()->find( BColor( "orange",
+                                            screen->screenInfo()->screenNumber()),
+                                    0, GXxor, IncludeInferiors );
     XDrawRectangle(*blackbox, screen->screenInfo()->rootWindow(), gc.gc(),
                    frame.resize_x, frame.resize_y,
                    frame.resize_w, frame.resize_h);
@@ -2595,8 +2599,10 @@ void BlackboxWindow::motionNotifyEvent(XMotionEvent *me) {
 
 	screen->showPosition(frame.x, frame.y);
 
-	BGCCache::Item &gc = BGCCache::instance()->find( BColor( "orange" ), 0, GXxor,
-							 IncludeInferiors );
+        BGCCache::Item &gc =
+          BGCCache::instance()->find( BColor( "orange",
+                                              screen->screenInfo()->screenNumber()),
+                                      0, GXxor, IncludeInferiors );
 	XDrawRectangle(*blackbox, screen->screenInfo()->rootWindow(), gc.gc(),
 		       frame.move_x, frame.move_y,
 		       frame.resize_w, frame.resize_h);
@@ -2635,9 +2641,10 @@ void BlackboxWindow::motionNotifyEvent(XMotionEvent *me) {
       if (screen->doOpaqueMove()) {
 	configure(dx, dy, frame.width, frame.height);
       } else {
-	BGCCache::Item &gc =
-          BGCCache::instance()->find( BColor( "orange" ), 0, GXxor,
-                                      IncludeInferiors );
+        BGCCache::Item &gc =
+          BGCCache::instance()->find( BColor( "orange",
+                                              screen->screenInfo()->screenNumber()),
+                                      0, GXxor, IncludeInferiors );
 	XDrawRectangle(*blackbox, screen->screenInfo()->rootWindow(), gc.gc(),
 		       frame.move_x, frame.move_y, frame.resize_w,
 		       frame.resize_h);
@@ -2686,15 +2693,19 @@ void BlackboxWindow::motionNotifyEvent(XMotionEvent *me) {
 
       screen->showGeometry(gx, gy);
 
-      BGCCache::Item &gc = BGCCache::instance()->find( BColor( "orange" ), 0, GXxor,
-						       IncludeInferiors );
+      BGCCache::Item &gc =
+        BGCCache::instance()->find( BColor( "orange",
+                                            screen->screenInfo()->screenNumber()),
+                                    0, GXxor, IncludeInferiors );
       XDrawRectangle(*blackbox, screen->screenInfo()->rootWindow(), gc.gc(),
 		     frame.resize_x, frame.resize_y,
 		     frame.resize_w, frame.resize_h);
       BGCCache::instance()->release( gc );
     } else {
-      BGCCache::Item &gc = BGCCache::instance()->find( BColor( "orange" ), 0, GXxor,
-						       IncludeInferiors );
+      BGCCache::Item &gc =
+        BGCCache::instance()->find( BColor( "orange",
+                                            screen->screenInfo()->screenNumber()),
+                                    0, GXxor, IncludeInferiors );
       XDrawRectangle(*blackbox, screen->screenInfo()->rootWindow(), gc.gc(),
 		     frame.resize_x, frame.resize_y,
 		     frame.resize_w, frame.resize_h);
