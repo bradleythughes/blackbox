@@ -2589,7 +2589,7 @@ void BlackboxWindow::buttonPressEvent(const XButtonEvent *be) {
           client.window);
 #endif
 
-  if (frame.maximize_button == be->window) {
+  if (frame.maximize_button == be->window && be->button < 4) {
     redrawMaximizeButton(True);
   } else if (be->button == 1 || (be->button == 3 && be->state == Mod1Mask)) {
     if (! flags.focused)
