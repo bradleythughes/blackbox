@@ -310,10 +310,16 @@ void Blackbox::process_event(XEvent *e)
         if (e->xbutton.button == 1) {
           if (! screen->isRootColormapInstalled())
             screen->getImageControl()->installRootColormap();
-          // clicking on the root window should cause that screen to become
-          // active
-          active_screen = screen;
 
+          if (screen != active_screen) {
+            // clicking on the root window should cause that screen to
+            // become active
+            active_screen = screen;
+            // first, set no focus window on the old screen
+            setFocusedWindow(0);
+            // and move focus to this screen
+            setFocusedWindow(0);
+          }
         }
       }
     }
