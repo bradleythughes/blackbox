@@ -191,6 +191,7 @@ Blackbox::Blackbox(int m_argc, char **m_argv, char *dpy_name, char *rc)
 #endif // HAVE_GETPID
 
   screenList = new LinkedList<BScreen>;
+  int managed = 0;
   for ( int i = 0; i < screenCount(); i++ ) {
     BScreen *screen = new BScreen( this, i );
 
@@ -202,9 +203,10 @@ Blackbox::Blackbox(int m_argc, char **m_argv, char *dpy_name, char *rc)
 
     screenList->insert( screen );
     screen->initialize();
+    ++managed;
   }
 
-  if (! screenList->count()) {
+  if (managed == 0) {
     fprintf(stderr,
 	    i18n(blackboxSet, blackboxNoManagableScreens,
                  "Blackbox::Blackbox: no managable screens found, aborting.\n"));
@@ -305,8 +307,14 @@ void Blackbox::process_event(XEvent *e)
         if (e->xbutton.window != screen->screenInfo()->rootWindow())
           continue;
 
-        if (e->xbutton.button == 1 && ! screen->isRootColormapInstalled())
-          screen->getImageControl()->installRootColormap();
+        if (e->xbutton.button == 1) {
+          if (! screen->isRootColormapInstalled())
+            screen->getImageControl()->installRootColormap();
+          // clicking on the root window should cause that screen to become
+          // active
+          active_screen = screen;
+
+        }
       }
     }
 
@@ -1629,43 +1637,27 @@ void Blackbox::timeout(void) {
 
 void Blackbox::setFocusedWindow(BlackboxWindow *win)
 {
-  BScreen *old_screen = (BScreen *) 0, *screen = (BScreen *) 0;
-  BlackboxWindow *old_win = (BlackboxWindow *) 0;
-  Toolbar *old_tbar = (Toolbar *) 0, *tbar = (Toolbar *) 0;
-  Workspace *old_wkspc = (Workspace *) 0, *wkspc = (Workspace *) 0;
+  BScreen *old_screen = 0;
 
   if (focused_window) {
-    old_win = focused_window;
-    old_screen = old_win->getScreen();
-    old_tbar = old_screen->getToolbar();
-    old_wkspc = old_screen->getWorkspace(old_win->getWorkspaceNumber());
-
-    old_win->setFocusFlag(False);
-    old_wkspc->getMenu()->setItemChecked(old_win->getWindowNumber(), False);
+    old_screen = focused_window->getScreen();
   }
 
   if (win && ! win->isIconic()) {
-    screen = win->getScreen();
-    tbar = screen->getToolbar();
-    wkspc = screen->getWorkspace(win->getWorkspaceNumber());
-
     // the active screen is the one with the last focused window...
     // this will keep focus on this screen no matter where the mouse goes,
     // so multihead keybindings will continue to work on that screen until the
     // user focuses a window on a different screen.
-    active_screen = screen;
+    active_screen = win->getScreen();
     focused_window = win;
-
-    win->setFocusFlag(True);
-    wkspc->getMenu()->setItemChecked(win->getWindowNumber(), True);
   } else {
-    focused_window = (BlackboxWindow *) 0;
+    focused_window = 0;
     if (! old_screen) {
       if (active_screen) {
         // set input focus to the toolbar of the screen with mouse
         XSetInputFocus(*blackbox, active_screen->getToolbar()->getWindowID(),
                        RevertToPointerRoot, CurrentTime);
-      } else {
+      } else if (screenList->first()) {
         // set input focus to the toolbar of the first managed screen
         XSetInputFocus(*blackbox, screenList->first()->getToolbar()->getWindowID(),
                        RevertToPointerRoot, CurrentTime);
@@ -1677,13 +1669,13 @@ void Blackbox::setFocusedWindow(BlackboxWindow *win)
     }
   }
 
-  if (tbar)
-    tbar->redrawWindowLabel(True);
-  if (screen)
-    screen->updateNetizenWindowFocus();
+  if (active_screen && active_screen->isScreenManaged()) {
+    active_screen->getToolbar()->redrawWindowLabel(True);
+    active_screen->updateNetizenWindowFocus();
+  }
 
-  if (old_tbar && old_tbar != tbar)
-    old_tbar->redrawWindowLabel(True);
-  if (old_screen && old_screen != screen)
+  if (old_screen && old_screen != active_screen) {
+    old_screen->getToolbar()->redrawWindowLabel(True);
     old_screen->updateNetizenWindowFocus();
+  }
 }

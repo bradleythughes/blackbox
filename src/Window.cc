@@ -41,6 +41,7 @@
 #include "Window.hh"
 #include "i18n.hh"
 #include "blackbox.hh"
+#include "Clientmenu.hh"
 #include "GCCache.hh"
 #include "Iconmenu.hh"
 #include "Image.hh"
@@ -1390,7 +1391,7 @@ void BlackboxWindow::iconify(void) {
 
   setState(IconicState);
 
-  XSelectInput(*blackbox, client.window, NoEventMask);
+  XSelectInput(*blackbox, client.window, FocusChangeMask);
   XUnmapWindow(*blackbox, client.window);
   XSelectInput(*blackbox, client.window,
                PropertyChangeMask | StructureNotifyMask | FocusChangeMask);
@@ -1423,7 +1424,7 @@ void BlackboxWindow::deiconify(Bool reassoc, Bool raise) {
 
   setState(NormalState);
 
-  XSelectInput(*blackbox, client.window, NoEventMask);
+  XSelectInput(*blackbox, client.window, FocusChangeMask);
   XMapWindow(*blackbox, client.window);
   XSelectInput(*blackbox, client.window,
                PropertyChangeMask | StructureNotifyMask | FocusChangeMask);
@@ -1465,7 +1466,7 @@ void BlackboxWindow::withdraw(void) {
 
   XUnmapWindow(*blackbox, frame.window);
 
-  XSelectInput(*blackbox, client.window, NoEventMask);
+  XSelectInput(*blackbox, client.window, FocusChangeMask);
   XUnmapWindow(*blackbox, client.window);
   XSelectInput(*blackbox, client.window,
                PropertyChangeMask | StructureNotifyMask | FocusChangeMask);
@@ -1702,6 +1703,11 @@ void BlackboxWindow::setFocusFlag(Bool focus) {
 
   if (screen->isSloppyFocus() && screen->doAutoRaise() && timer->isTiming())
     timer->stop();
+
+  if (! flags.iconic) {
+    Clientmenu *menu = screen->getWorkspace(workspace_number)->getMenu();
+    menu->setItemChecked(window_number, focus);
+  }
 }
 
 
@@ -3027,10 +3033,11 @@ void BlackboxWindow::left_fixsize(int *gx, int *gy) {
 // new API functions
 void BlackboxWindow::setFocused(bool f)
 {
-  if (f == isFocused())
+  if (f == isFocused()) {
     return;
-  setFocusFlag(f);
+  }
 
+  setFocusFlag(f);
   if (isFocused())
     blackbox->setFocusedWindow(this);
 }
