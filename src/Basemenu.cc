@@ -43,13 +43,14 @@
 // new basemenu popup
 
 Basemenu::Basemenu(int scr)
-  : Widget(scr, Popup),
+  : Widget(scr, Popup), timer(BaseDisplay::instance(), &timeout),
     title_pixmap(0), items_pixmap(0), highlight_pixmap(0),
     parent_menu(0), current_submenu(0),
     motion(0), rows(0), cols(0), itemw(0), indent(0), active_item(-1),
     show_title(false), size_dirty(true),
     pressed(false), title_pressed(false), auto_delete(true)
 {
+  timer.setTimeout(200l);
 }
 
 Basemenu::~Basemenu()
@@ -496,6 +497,8 @@ void Basemenu::hide()
   if (current_submenu && current_submenu->isVisible())
     current_submenu->hide();
   current_submenu = 0;
+  timer.stop();
+  // timeout.menu = 0;
 
   Items::iterator it = items.begin();
   if (show_title) {
@@ -939,9 +942,6 @@ void Basemenu::setActiveItem(int index)
     Item &item = (*it++);
     r.setRect(x, y, itemw, item.height);
 
-    // do a little
-
-
     if (index != -1 && item.index() == index) {
       XClearArea(*display, windowID(), x, y, itemw, item.height, True);
       active_item = item.index();
@@ -1006,7 +1006,9 @@ void Basemenu::showActiveSubmenu()
     r.setRect(x, y, itemw, item.height);
 
     if (item.index() == active_item) {
-      showSubmenu(r, item);
+      showSubmenu(r, item, false);
+      if (current_submenu)
+        current_submenu->setActiveItem(0);
       break;
     }
 
@@ -1023,11 +1025,13 @@ void Basemenu::showActiveSubmenu()
   }
 }
 
-void Basemenu::showSubmenu(const Rect &r, const Item &item)
+void Basemenu::showSubmenu(const Rect &r, const Item &item, bool delay)
 {
   if (current_submenu && current_submenu->isVisible())
     current_submenu->hide();
   current_submenu = 0;
+  timer.stop();
+  // timeout.menu = 0;
 
   if (! item.submenu())
     return;
@@ -1071,8 +1075,15 @@ void Basemenu::showSubmenu(const Rect &r, const Item &item)
 
   // show the submenu
   current_submenu = item.submenu();
+  timeout.menu = current_submenu;
+
   current_submenu->move(px, py);
-  current_submenu->show();
+
+  if (delay) {
+    // delayed show...
+    timer.start();
+  } else
+    current_submenu->show();
 }
 
 void Basemenu::buttonPressEvent(XEvent *e)
@@ -1243,6 +1254,8 @@ void Basemenu::pointerMotionEvent(XEvent *e)
       if (current_submenu && item.submenu() != current_submenu) {
         current_submenu->hide();
         current_submenu = 0;
+        timer.stop();
+        // timeout.menu = 0;
       }
 
       title_pressed = false;
@@ -1251,6 +1264,8 @@ void Basemenu::pointerMotionEvent(XEvent *e)
       if (current_submenu && item.submenu() == current_submenu) {
         current_submenu->hide();
         current_submenu = 0;
+        timer.stop();
+        // timeout.menu = 0;
       }
 
       item.active = false;

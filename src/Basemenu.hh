@@ -24,6 +24,7 @@
 #ifndef   __Basemenu_hh
 #define   __Basemenu_hh
 
+#include "Timer.hh"
 #include "Widget.hh"
 
 #include <list>
@@ -118,7 +119,7 @@ protected:
   virtual void setActiveItem(int);
   virtual void setActiveItem(const Rect &, Item &);
   virtual void showActiveSubmenu();
-  virtual void showSubmenu(const Rect &, const Item &);
+  virtual void showSubmenu(const Rect &, const Item &, bool = true);
   virtual void updateSize();
 
   virtual void buttonPressEvent(XEvent *);
@@ -134,6 +135,21 @@ protected:
   virtual void hideAll();
 
 private:
+
+  class Timeout : public TimeoutHandler
+  {
+  public:
+    Basemenu *menu;
+    Timeout() : menu(0) { }
+    void timeout()
+    {
+      if (menu)
+        menu->show();
+    }
+  };
+  Timeout timeout;
+  BTimer timer;
+
   void drawTitle();
   void drawItem(const Rect &, const Item &);
   void clickActiveItem();
