@@ -1,7 +1,8 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
-// Window.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+// bsetroot - a background setting utility
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -26,30 +27,34 @@
 #endif // HAVE_CONFIG_H
 
 extern "C" {
-#ifdef HAVE_STDLIB_H
-#  include <stdlib.h>
-#endif // HAVE_STDLIB_H
-
-#ifdef HAVE_STRING_H
-#  include <string.h>
-#endif // HAVE_STRING_H
-
 #include <stdio.h>
-
-#ifdef    HAVE_CTYPE_H
-#  include <ctype.h>
-#endif // HAVE_CTYPE_H
 }
 
-#include "i18n.hh"
+#include <cctype>
+
+// always include this just for the #defines
+// this keeps the calls to i18n->getMessage clean, otherwise we have to
+// add ifdefs to every call to getMessage
+#include "../nls/blackbox-nls.hh"
+
+#include "bsetroot.hh"
 #include "Pen.hh"
 #include "Texture.hh"
-#include "bsetroot.hh"
+#include "i18n.hh"
+
+
+static int x11_error(::Display *, XErrorEvent *) {
+  // ignore all X errors
+  return 0;
+}
 
 
 bt::I18n bt::i18n;
 
-bsetroot::bsetroot(int argc, char **argv, char *dpy_name): display(dpy_name) {
+bsetroot::bsetroot(int argc, char **argv, char *dpy_name,
+                   bool multi_head): display(dpy_name, multi_head) {
+  XSetErrorHandler(x11_error); // silently handle all errors
+
   bool mod = False, sol = False, grd = False;
   int mod_x = 0, mod_y = 0;
 
@@ -92,7 +97,7 @@ bsetroot::bsetroot(int argc, char **argv, char *dpy_name): display(dpy_name) {
       grad = argv[i];
       grd = True;
     } else if (! strcmp("-display", argv[i])) {
-      // -display passed through tests ealier... we just skip it now
+      // -display passed through tests ealier... we
       i++;
     } else {
       usage();
@@ -106,13 +111,21 @@ bsetroot::bsetroot(int argc, char **argv, char *dpy_name): display(dpy_name) {
     usage(2);
   }
 
+  // keep the server grabbed while rendering all screens
+  XGrabServer(display.XDisplay());
+
   if (sol && ! fore.empty())
     solid();
   else if (mod && mod_x && mod_y && ! (fore.empty() || back.empty()))
     modula(mod_x, mod_y);
   else if (grd && ! (grad.empty() || fore.empty() || back.empty()))
     gradient();
-  else usage();
+  else
+    usage();
+
+  // ungrab the server and discard any events
+  XUngrabServer(display.XDisplay());
+  XSync(display.XDisplay(), True);
 }
 
 
@@ -124,71 +137,80 @@ bsetroot::~bsetroot(void) {
 
 // adapted from wmsetbg
 void bsetroot::setPixmapProperty(int screen, Pixmap pixmap) {
-  static Atom rootpmap_id = None, esetroot_id = None;
+  Atom rootpmap_id = XInternAtom(display.XDisplay(), "_XROOTPMAP_ID", False),
+       esetroot_id = XInternAtom(display.XDisplay(), "ESETROOT_PMAP_ID", False);
+
+  const bt::ScreenInfo &screen_info = display.screenInfo(screen);
+
   Atom type;
   int format;
   unsigned long length, after;
-  unsigned char *data;
-  const bt::ScreenInfo * const screen_info = display.screenNumber(screen);
+  unsigned char *data = 0;
+  Pixmap xrootpmap = None;
+  Pixmap esetrootpmap = None;
 
-  if (rootpmap_id == None) {
-    rootpmap_id = XInternAtom(display.XDisplay(), "_XROOTPMAP_ID", False);
-    esetroot_id = XInternAtom(display.XDisplay(), "ESETROOT_PMAP_ID", False);
-  }
+  // Clear out the old _XROOTPMAP_ID property
+  XGetWindowProperty(display.XDisplay(), screen_info.rootWindow(),
+		     rootpmap_id, 0L, 1L, True, AnyPropertyType,
+                     &type, &format, &length, &after, &data);
 
-  XGrabServer(display.XDisplay());
+  if (data && type == XA_PIXMAP && format == 32 && length == 1)
+    xrootpmap = *(reinterpret_cast<Pixmap *>(data));
 
-  /* Clear out the old pixmap */
-  XGetWindowProperty(display.XDisplay(), screen_info->getRootWindow(),
-		     rootpmap_id, 0L, 1L, False, AnyPropertyType,
-		     &type, &format, &length, &after, &data);
+  if (data) XFree(data);
 
-  if ((type == XA_PIXMAP) && (format == 32) && (length == 1)) {
-    unsigned char* data_esetroot = 0;
-    XGetWindowProperty(display.XDisplay(), screen_info->getRootWindow(),
-                       esetroot_id, 0L, 1L, False, AnyPropertyType,
-                       &type, &format, &length, &after, &data_esetroot);
-    if (data && data_esetroot && *((Pixmap *) data)) {
-      XKillClient(display.XDisplay(), *((Pixmap *) data));
-      XSync(display.XDisplay(), False);
-      XFree(data_esetroot);
-    }
-    XFree(data);
-  }
+  // Clear out the old ESETROOT_PMAP_ID property
+  XGetWindowProperty(display.XDisplay(), screen_info.rootWindow(),
+                     esetroot_id, 0L, 1L, True, AnyPropertyType,
+                     &type, &format, &length, &after, &data);
+
+  if (data && type == XA_PIXMAP && format == 32 && length == 1)
+    esetrootpmap = *(reinterpret_cast<Pixmap *>(data));
+
+  if (data) XFree(data);
+
+  // Destroy the old pixmaps
+  if (xrootpmap)
+    XKillClient(display.XDisplay(), xrootpmap);
+  if (esetrootpmap && esetrootpmap != xrootpmap)
+    XKillClient(display.XDisplay(), esetrootpmap);
 
   if (pixmap) {
-    XChangeProperty(display.XDisplay(), screen_info->getRootWindow(),
+    XChangeProperty(display.XDisplay(), screen_info.rootWindow(),
 		    rootpmap_id, XA_PIXMAP, 32, PropModeReplace,
-		    (unsigned char *) &pixmap, 1);
-    XChangeProperty(display.XDisplay(), screen_info->getRootWindow(),
+		    reinterpret_cast<unsigned char *>(&pixmap), 1);
+    XChangeProperty(display.XDisplay(), screen_info.rootWindow(),
 		    esetroot_id, XA_PIXMAP, 32, PropModeReplace,
-		    (unsigned char *) &pixmap, 1);
-  } else {
-    XDeleteProperty(display.XDisplay(), screen_info->getRootWindow(),
-		    rootpmap_id);
-    XDeleteProperty(display.XDisplay(), screen_info->getRootWindow(),
-		    esetroot_id);
+		    reinterpret_cast<unsigned char *>(&pixmap), 1);
   }
-
-  XUngrabServer(display.XDisplay());
-  XFlush(display.XDisplay());
 }
 
 
-// adapted from wmsetbg
-Pixmap bsetroot::duplicatePixmap(int screen, Pixmap pixmap,
-				 int width, int height) {
-  XSync(display.XDisplay(), False);
+unsigned long bsetroot::duplicateColor(unsigned int screen,
+                                       const bt::Color &color) {
+  /*
+    When using a colormap that is not read-only, we need to
+    reallocate the color we are using.  The application's color cache
+    will be freed on exit, and another client can allocate a new
+    color at the same pixel value, which will immediately change the
+    color of the root window.
 
-  Pixmap copyP = XCreatePixmap(display.XDisplay(),
-			       display.screenNumber(screen)->getRootWindow(),
-			       width, height,
-			       DefaultDepth(display.XDisplay(), screen));
-  XCopyArea(display.XDisplay(), pixmap, copyP, DefaultGC(display.XDisplay(), screen),
-	    0, 0, width, height, 0, 0);
-  XSync(display.XDisplay(), False);
-
-  return copyP;
+    this is not what we want, so we need to make sure that the pixel
+    we are using is doubly allocated, so that it stays around with the
+    pixmap.  It will be released when we use
+    XKillClient(..., AllTemporary);
+  */
+  const bt::ScreenInfo &screen_info = display.screenInfo(screen);
+  unsigned long pixel = color.pixel(screen);
+  XColor xcolor;
+  xcolor.pixel = pixel;
+  XQueryColor(display.XDisplay(), screen_info.colormap(), &xcolor);
+  if (! XAllocColor(display.XDisplay(), screen_info.colormap(),
+                    &xcolor)) {
+    fprintf(stderr, "warning: couldn't duplicate color %02x/%02x/%02x\n",
+            color.red(), color.green(), color.blue());
+  }
+  return pixel;
 }
 
 
@@ -196,21 +218,20 @@ void bsetroot::solid(void) {
   bt::Color c = bt::Color::namedColor(display, 0, fore);
 
   for (unsigned int screen = 0; screen < display.screenCount(); screen++) {
-    const bt::ScreenInfo * const screen_info = display.screenNumber(screen);
-    XSetWindowBackground(display.XDisplay(), screen_info->getRootWindow(),
-                         c.pixel(screen));
-    XClearWindow(display.XDisplay(), screen_info->getRootWindow());
+    const bt::ScreenInfo &screen_info = display.screenInfo(screen);
+    unsigned long pixel = duplicateColor(screen, c);
+
+    XSetWindowBackground(display.XDisplay(), screen_info.rootWindow(), pixel);
+    XClearWindow(display.XDisplay(), screen_info.rootWindow());
 
     Pixmap pixmap =
-      XCreatePixmap(display.XDisplay(), screen_info->getRootWindow(),
+      XCreatePixmap(display.XDisplay(), screen_info.rootWindow(),
                     8, 8, DefaultDepth(display.XDisplay(), screen));
 
     bt::Pen pen(screen, c);
     XFillRectangle(display.XDisplay(), pixmap, pen.gc(), 0, 0, 8, 8);
 
-    setPixmapProperty(screen, duplicatePixmap(screen, pixmap, 8, 8));
-
-    XFreePixmap(display.XDisplay(), pixmap);
+    setPixmapProperty(screen, pixmap);
   }
 }
 
@@ -241,40 +262,33 @@ void bsetroot::modula(int x, int y) {
       }
     }
 
-    GC gc;
-    Pixmap bitmap;
-    const bt::ScreenInfo * const screen_info = display.screenNumber(screen);
-
-    bitmap =
-      XCreateBitmapFromData(display.XDisplay(), screen_info->getRootWindow(),
-                            data, 16, 16);
+    const bt::ScreenInfo &screen_info = display.screenInfo(screen);
 
     XGCValues gcv;
-    gcv.foreground = f.pixel(screen);
-    gcv.background = b.pixel(screen);
+    gcv.foreground = duplicateColor(screen, f);
+    gcv.background = duplicateColor(screen, b);
 
-    gc = XCreateGC(display.XDisplay(), screen_info->getRootWindow(),
-                   GCForeground | GCBackground, &gcv);
+    GC gc = XCreateGC(display.XDisplay(), screen_info.rootWindow(),
+                      GCForeground | GCBackground, &gcv);
 
     Pixmap pixmap = XCreatePixmap(display.XDisplay(),
-				  screen_info->getRootWindow(),
-				  16, 16, screen_info->getDepth());
+				  screen_info.rootWindow(),
+				  16, 16, screen_info.depth());
 
+    Pixmap bitmap =
+      XCreateBitmapFromData(display.XDisplay(), screen_info.rootWindow(),
+                            data, 16, 16);
     XCopyPlane(display.XDisplay(), bitmap, pixmap, gc,
                0, 0, 16, 16, 0, 0, 1l);
-    XSetWindowBackgroundPixmap(display.XDisplay(),
-                               screen_info->getRootWindow(),
-                               pixmap);
-    XClearWindow(display.XDisplay(), screen_info->getRootWindow());
-
-    setPixmapProperty(screen,
-		      duplicatePixmap(screen, pixmap, 16, 16));
-
     XFreeGC(display.XDisplay(), gc);
     XFreePixmap(display.XDisplay(), bitmap);
 
-    if (! (screen_info->getVisual()->c_class & 1))
-      XFreePixmap(display.XDisplay(), pixmap);
+    XSetWindowBackgroundPixmap(display.XDisplay(),
+                               screen_info.rootWindow(),
+                               pixmap);
+    XClearWindow(display.XDisplay(), screen_info.rootWindow());
+
+    setPixmapProperty(screen, pixmap);
   }
 }
 
@@ -312,32 +326,26 @@ void bsetroot::gradient(void) {
   texture.setColorTo(b);
 
   for (unsigned int screen = 0; screen < display.screenCount(); screen++) {
-    const bt::ScreenInfo * const screen_info = display.screenNumber(screen);
+    const bt::ScreenInfo &screen_info = display.screenInfo(screen);
 
-    bt::Image image(screen_info->getWidth(), screen_info->getHeight());
+    bt::Image image(screen_info.width(), screen_info.height());
     Pixmap pixmap = image.render(display, screen, texture);
 
     XSetWindowBackgroundPixmap(display.XDisplay(),
-                               screen_info->getRootWindow(),
+                               screen_info.rootWindow(),
                                pixmap);
-    XClearWindow(display.XDisplay(), screen_info->getRootWindow());
+    XClearWindow(display.XDisplay(), screen_info.rootWindow());
 
-    setPixmapProperty(screen,
-		      duplicatePixmap(screen, pixmap,
-				      screen_info->getWidth(),
-				      screen_info->getHeight()));
-
-    if (! (screen_info->getVisual()->c_class & 1))
-      XFreePixmap(display.XDisplay(), pixmap);
+    setPixmapProperty(screen, pixmap);
   }
 }
 
 
 void bsetroot::usage(int exit_code) {
   fprintf(stderr,
-          "bsetroot 3.0\n\n"
-          "Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry\n"
-          "Copyright (c) 1997 - 2000, 2002 Bradley T Hughes\n");
+          "bsetroot 3.1\n\n"
+          "Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry\n"
+          "Copyright (c) 1997 - 2000, 2002 - 2003 Bradley T Hughes\n");
   fprintf(stderr,
           bt::i18n(bsetrootSet, bsetrootUsage,
                "  -display <string>        use display connection\n"
@@ -353,7 +361,8 @@ void bsetroot::usage(int exit_code) {
 }
 
 int main(int argc, char **argv) {
-  char *display_name = (char *) 0;
+  char *display_name = 0;
+  bool multi_head = False;
 
   bt::i18n.openCatalog("blackbox.cat");
 
@@ -369,10 +378,11 @@ int main(int argc, char **argv) {
       }
 
       display_name = argv[i];
+    } else if (! strcmp(argv[i], "-multi")) {
+      multi_head = True;
     }
   }
 
-  bsetroot app(argc, argv, display_name);
-
+  bsetroot app(argc, argv, display_name, multi_head);
   return 0;
 }

@@ -14,8 +14,9 @@
 @SET_MAKE@
 
 # src/Makefile.am for Blackbox - an X11 Window manager
-# Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-# Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+# Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+# Copyright (c) 1997 - 2000, 2002 - 2003
+#         Bradley T Hughes <bhughes at trolltech.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -85,13 +86,12 @@ DEPDIR = @DEPDIR@
 EXEEXT = @EXEEXT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 MAINT = @MAINT@
+MITSHM = @MITSHM@
 NLS = @NLS@
 OBJEXT = @OBJEXT@
-ORDEREDPSEUDO = @ORDEREDPSEUDO@
 PACKAGE = @PACKAGE@
 RANLIB = @RANLIB@
 SHAPE = @SHAPE@
-TIMEDCACHE = @TIMEDCACHE@
 VERSION = @VERSION@
 am__include = @am__include@
 am__quote = @am__quote@
@@ -101,29 +101,26 @@ regex_cmd = @regex_cmd@
 
 DEFAULT_MENU = $(pkgdatadir)/menu
 DEFAULT_STYLE = $(pkgdatadir)/styles/Results
-CPPFLAGS = @CPPFLAGS@ @SHAPE@ @ORDEREDPSEUDO@ @DEBUG@ @NLS@ \
+CPPFLAGS = @CPPFLAGS@ @SHAPE@ @DEBUG@ @NLS@ \
 			  -DLOCALEPATH=\"$(pkgdatadir)/nls\" \
 			  -DDEFAULTMENU=\"$(DEFAULT_MENU)\" \
 			  -DDEFAULTSTYLE=\"$(DEFAULT_STYLE)\" \
 			  -I$(top_srcdir)/lib
 
 bin_PROGRAMS = blackbox
-blackbox_SOURCES = Clientmenu.cc					\
+blackbox_SOURCES = BlackboxResource.cc                           \
 			  Configmenu.cc					\
-			  Iconmenu.cc					\
 			  Rootmenu.cc					\
 			  Screen.cc					\
 			  Slit.cc					\
-			  StackingList.cc				\
-			  Stackmenu.cc					\
 			  Toolbar.cc					\
 			  Window.cc					\
 			  Windowmenu.cc					\
 			  blackbox.cc					\
 			  main.cc
 
-blackbox_DEPENDENCIES = $(top_srcdir)/lib/libbt.a
-blackbox_LDADD = -L$(top_srcdir)/lib -lbt
+blackbox_DEPENDENCIES = $(top_builddir)/lib/libbt.a
+blackbox_LDADD = -L$(top_builddir)/lib -lbt
 
 MAINTAINERCLEANFILES = Makefile.in
 subdir = src
@@ -133,11 +130,10 @@ CONFIG_CLEAN_FILES =
 bin_PROGRAMS = blackbox$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS)
 
-am_blackbox_OBJECTS = Clientmenu.$(OBJEXT) Configmenu.$(OBJEXT) \
-	Iconmenu.$(OBJEXT) Rootmenu.$(OBJEXT) Screen.$(OBJEXT) \
-	Slit.$(OBJEXT) StackingList.$(OBJEXT) Stackmenu.$(OBJEXT) \
-	Toolbar.$(OBJEXT) Window.$(OBJEXT) Windowmenu.$(OBJEXT) \
-	blackbox.$(OBJEXT) main.$(OBJEXT)
+am_blackbox_OBJECTS = BlackboxResource.$(OBJEXT) \
+	Configmenu.$(OBJEXT) Rootmenu.$(OBJEXT) \
+	Screen.$(OBJEXT) Slit.$(OBJEXT) Toolbar.$(OBJEXT) \
+	Window.$(OBJEXT) Windowmenu.$(OBJEXT) blackbox.$(OBJEXT) main.$(OBJEXT)
 blackbox_OBJECTS = $(am_blackbox_OBJECTS)
 blackbox_LDFLAGS =
 
@@ -146,13 +142,12 @@ DEFAULT_INCLUDES =  -I. -I$(srcdir) -I$(top_builddir)
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
-@AMDEP_TRUE@DEP_FILES = $(DEPDIR)/Clientmenu.Po $(DEPDIR)/Configmenu.Po \
-@AMDEP_TRUE@	$(DEPDIR)/Iconmenu.Po $(DEPDIR)/Rootmenu.Po \
+@AMDEP_TRUE@DEP_FILES = $(DEPDIR)/BlackboxResource.Po \
+@AMDEP_TRUE@    $(DEPDIR)/Configmenu.Po $(DEPDIR)/Rootmenu.Po \
 @AMDEP_TRUE@	$(DEPDIR)/Screen.Po $(DEPDIR)/Slit.Po \
-@AMDEP_TRUE@	$(DEPDIR)/StackingList.Po $(DEPDIR)/Stackmenu.Po \
 @AMDEP_TRUE@	$(DEPDIR)/Toolbar.Po $(DEPDIR)/Window.Po \
-@AMDEP_TRUE@	$(DEPDIR)/Windowmenu.Po $(DEPDIR)/blackbox.Po \
-@AMDEP_TRUE@	$(DEPDIR)/main.Po
+@AMDEP_TRUE@	$(DEPDIR)/Windowmenu.Po \
+@AMDEP_TRUE@	$(DEPDIR)/blackbox.Po $(DEPDIR)/main.Po
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 CXXLD = $(CXX)
@@ -169,7 +164,7 @@ all: all-am
 .SUFFIXES: .cc .o .obj
 $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ Makefile.am  $(top_srcdir)/configure.ac $(ACLOCAL_M4)
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  src/Makefile
+	  $(AUTOMAKE) --foreign  src/Makefile
 Makefile: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.in  $(top_builddir)/config.status
 	cd $(top_builddir) && \
 	  CONFIG_HEADERS= CONFIG_LINKS= \
@@ -207,14 +202,11 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Clientmenu.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/BlackboxResource.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Configmenu.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Iconmenu.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Rootmenu.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Screen.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Slit.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/StackingList.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Stackmenu.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Toolbar.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Window.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@$(DEPDIR)/Windowmenu.Po@am__quote@

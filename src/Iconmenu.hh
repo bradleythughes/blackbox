@@ -1,6 +1,8 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Icon.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -23,21 +25,20 @@
 #ifndef   __Icon_hh
 #define   __Icon_hh
 
-#include "Basemenu.hh"
+#include "Menu.hh"
 
-// forward declaration
-class Iconmenu;
 class BScreen;
 
-class Iconmenu : public Basemenu {
-private:
-  BScreen *screen;
+
+class Iconmenu : public bt::Menu {
+public:
+  Iconmenu(bt::Application &app, unsigned int screen, BScreen *bscreen);
 
 protected:
-  virtual void itemSelected(int, int);
+  virtual void itemClicked(unsigned int id, unsigned int);
 
-public:
-  Iconmenu(BScreen *);
+private:
+  BScreen *_bscreen;
 };
 
 

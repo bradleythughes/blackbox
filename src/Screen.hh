@@ -1,7 +1,8 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Screen.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -44,45 +45,19 @@ extern "C" {
 #include <vector>
 typedef std::vector<Window> WindowStack;
 
-#include "Color.hh"
-#include "Texture.hh"
-#include "Clientmenu.hh"
 #include "Configmenu.hh"
-#include "Iconmenu.hh"
 #include "Netwm.hh"
-#include "Stackmenu.hh"
-#include "Timer.hh"
 #include "blackbox.hh"
+#include "BlackboxResource.hh"
 
 // forward declaration
 class Rootmenu;
 class Slit;
-class StackingList;
-
-struct WindowStyle {
-  bt::Color l_text_focus, l_text_unfocus, b_pic_focus,
-    b_pic_unfocus;
-  bt::Texture f_focus, f_unfocus, t_focus, t_unfocus, l_focus, l_unfocus,
-    h_focus, h_unfocus, b_focus, b_unfocus, b_pressed, g_focus, g_unfocus;
-  bt::Font font;
-  bt::Alignment alignment;
-  unsigned int handle_width, frame_width;
-};
-
-struct ToolbarStyle {
-  bt::Color l_text, w_text, c_text, b_pic;
-  bt::Texture toolbar, label, window, button, pressed, clock;
-  bt::Font font;
-  bt::Alignment alignment;
-};
-
 
 typedef std::list<BlackboxWindow*> BlackboxWindowList;
 typedef std::list<Window> WindowList;
 
-
-class BScreen : public bt::NoCopy, public bt::EventHandler,
-                public bt::TimeoutHandler {
+class BScreen : public bt::NoCopy, public bt::EventHandler {
 private:
   bool root_colormap_installed, managed, geom_visible;
   GC opGC;
@@ -91,51 +66,26 @@ private:
 
   const bt::ScreenInfo& screen_info;
   Blackbox *blackbox;
-  bt::ImageControl *image_control;
   Configmenu *configmenu;
-  Iconmenu *iconmenu;
   Rootmenu *rootmenu;
-  Clientmenu *clientmenu;
-  Stackmenu *stackmenu;
 
-  BlackboxWindowList iconList, windowList;
-  StackingList* stackingList;
-  unsigned int cascade_x, cascade_y;
+  BlackboxWindowList windowList;
 
   Slit *slit;
   Toolbar *toolbar;
 
   unsigned int geom_w, geom_h;
-  unsigned long event_mask;
 
   bt::Rect usableArea;
-  bool area_is_dirty;
+  int cascade_x, cascade_y;
 
   typedef std::list<bt::Netwm::Strut*> StrutList;
   StrutList strutList;
 
-  struct screen_resource {
-    WindowStyle wstyle;
-    ToolbarStyle tstyle;
+  ScreenResource& _resource;
 
-    bool toolbar_on_top, toolbar_auto_hide, sloppy_focus, auto_raise,
-      auto_edge_balance, image_dither, ordered_dither, opaque_move, full_max,
-      focus_new, focus_last, click_raise, allow_scroll_lock;
-    bt::Color border_color;
-    XrmDatabase stylerc;
-
-    int toolbar_placement, toolbar_width_percent, placement_policy,
-      edge_snap_threshold, row_direction, col_direction;
-
-    bool slit_on_top, slit_auto_hide;
-    int slit_placement, slit_direction;
-
-    unsigned int bevel_width, border_width;
-
-    std::string strftime_format;
-  } resource;
-
-  bt::Timer *timer;
+  void updateOpGC(void);
+  void updateGeomWindow(void);
 
   bool parseMenuFile(FILE *file, Rootmenu *menu);
 
@@ -144,137 +94,43 @@ private:
 
   void manageWindow(Window w);
   void unmanageWindow(BlackboxWindow *w, bool remap);
-
-  bool smartPlacement(bt::Rect& win, const bt::Rect& sandbox);
-  bool cascadePlacement(bt::Rect& win, const bt::Rect& sandbox);
-
-  void raiseTransients(const BlackboxWindow* win, WindowStack& stack);
-  void lowerTransients(const BlackboxWindow* win, WindowStack& stack);
+  void placeWindow(BlackboxWindow *win);
+  bool cascadePlacement(bt::Rect& win);
+  bool smartPlacement(bt::Rect& win);
 
   void updateAvailableArea(void);
   void updateWorkareaHint(void) const;
 
 public:
-  enum { RowSmartPlacement = 1, ColSmartPlacement, CascadePlacement, LeftRight,
-         RightLeft, TopBottom, BottomTop };
   enum { RoundBullet = 1, TriangleBullet, SquareBullet, NoBullet };
   enum { Restart = 1, RestartOther, Exit, Shutdown, Execute, Reconfigure,
-         SetStyle };
+         WindowShade, WindowIconify, WindowMaximize, WindowClose, WindowRaise,
+         WindowLower, WindowKill, SetStyle };
   enum FocusModel { SloppyFocus, ClickToFocus };
 
   BScreen(Blackbox *bb, unsigned int scrn);
   ~BScreen(void);
 
-  bool isToolbarOnTop(void) const
-  { return resource.toolbar_on_top; }
-  bool doToolbarAutoHide(void) const
-  { return resource.toolbar_auto_hide; }
-  bool isSloppyFocus(void) const
-  { return resource.sloppy_focus; }
-  bool isRootColormapInstalled(void) const
-  { return root_colormap_installed; }
-  bool doAutoRaise(void) const { return resource.auto_raise; }
-  bool doClickRaise(void) const { return resource.click_raise; }
+  // information about the screen
+  const bt::ScreenInfo &screenInfo(void) const { return screen_info; }
+  unsigned int screenNumber(void) const { return screen_info.screenNumber(); }
+
+  ScreenResource& resource(void) { return _resource; }
+  void saveResource(void) { blackbox->resource().save(*blackbox); }
+
   bool isScreenManaged(void) const { return managed; }
-  bool doImageDither(void) const
-  { return resource.image_dither; }
-  bool doOrderedDither(void) const
-  { return resource.ordered_dither; }
-  bool doOpaqueMove(void) const { return resource.opaque_move; }
-  bool doFullMax(void) const { return resource.full_max; }
-  bool doFocusNew(void) const { return resource.focus_new; }
-  bool doFocusLast(void) const { return resource.focus_last; }
-  bool allowScrollLock(void) const { return resource.allow_scroll_lock;}
+  bool isRootColormapInstalled(void) const { return root_colormap_installed; }
 
   const GC &getOpGC(void) const { return opGC; }
-  const bt::ScreenInfo& getScreenInfo(void) const { return screen_info; }
   Blackbox *getBlackbox(void) { return blackbox; }
-  bt::Color *getBorderColor(void) { return &resource.border_color; }
-  bt::ImageControl *getImageControl(void) { return image_control; }
+
   Rootmenu *getRootmenu(void) { return rootmenu; }
 
-  // pass throughs to ScreenInfo
-  Colormap getColormap(void) const
-  { return screen_info.getColormap();}
-  Window getRootWindow(void) const
-  { return screen_info.getRootWindow(); }
-  int getDepth(void) const { return screen_info.getDepth(); }
-  Visual* getVisual(void) const { return screen_info.getVisual(); }
-  unsigned int getWidth(void) const { return screen_info.getWidth(); }
-  unsigned int getHeight(void) const
-  { return screen_info.getHeight(); }
-  const std::string& displayString(void) const
-  { return screen_info.displayString(); }
-  unsigned int screenNumber(void) const
-  { return screen_info.getScreenNumber();}
-
-  bool isSlitOnTop(void) const { return resource.slit_on_top; }
-  bool doSlitAutoHide(void) const
-  { return resource.slit_auto_hide; }
   Slit *getSlit(void) { return slit; }
-  int getSlitPlacement(void) const
-  { return resource.slit_placement; }
-  int getSlitDirection(void) const
-  { return resource.slit_direction; }
-  void saveSlitPlacement(int p) { resource.slit_placement = p; }
-  void saveSlitDirection(int d) { resource.slit_direction = d; }
-  void saveSlitOnTop(bool t)    { resource.slit_on_top = t; }
-  void saveSlitAutoHide(bool t) { resource.slit_auto_hide = t; }
 
   Toolbar *getToolbar(void) { return toolbar; }
 
-  Stackmenu *getStackmenu(void) { return stackmenu; }
-
-  unsigned int getBevelWidth(void) const
-  { return resource.bevel_width; }
-  unsigned int getBorderWidth(void) const
-  { return resource.border_width; }
-
-  unsigned int getIconCount(void) const { return iconList.size(); }
-  int getToolbarPlacement(void) const
-  { return resource.toolbar_placement; }
-  int getToolbarWidthPercent(void) const
-  { return resource.toolbar_width_percent; }
-  int getPlacementPolicy(void) const
-  { return resource.placement_policy; }
-  int getEdgeSnapThreshold(void) const
-  { return resource.edge_snap_threshold; }
-  int getRowPlacementDirection(void) const
-  { return resource.row_direction; }
-  int getColPlacementDirection(void) const
-  { return resource.col_direction; }
-
-  BlackboxWindow* getWindow(unsigned int id);
-
   void setRootColormapInstalled(bool r) { root_colormap_installed = r; }
-  void saveSloppyFocus(bool s) { resource.sloppy_focus = s; }
-  void saveAutoRaise(bool a) { resource.auto_raise = a; }
-  void saveClickRaise(bool c) { resource.click_raise = c; }
-  void saveToolbarOnTop(bool r) { resource.toolbar_on_top = r; }
-  void saveToolbarAutoHide(bool r) { resource.toolbar_auto_hide = r; }
-  void saveToolbarWidthPercent(int w)
-  { resource.toolbar_width_percent = w; }
-  void saveToolbarPlacement(int p) { resource.toolbar_placement = p; }
-  void savePlacementPolicy(int p) { resource.placement_policy = p; }
-  void saveRowPlacementDirection(int d) { resource.row_direction = d; }
-  void saveColPlacementDirection(int d) { resource.col_direction = d; }
-  void saveEdgeSnapThreshold(int t)
-  { resource.edge_snap_threshold = t; }
-  void saveImageDither(bool d) { resource.image_dither = d; }
-  void saveOpaqueMove(bool o) { resource.opaque_move = o; }
-  void saveFullMax(bool f) { resource.full_max = f; }
-  void saveFocusNew(bool f) { resource.focus_new = f; }
-  void saveFocusLast(bool f) { resource.focus_last = f; }
-  void saveAllowScrollLock(bool a) { resource.allow_scroll_lock = a; }
-
-  const char *getStrftimeFormat(void)
-  { return resource.strftime_format.c_str(); }
-  void saveStrftimeFormat(const std::string& format);
-
-  WindowStyle *getWindowStyle(void) { return &resource.wstyle; }
-  ToolbarStyle *getToolbarStyle(void) { return &resource.tstyle; }
-
-  BlackboxWindow *getIcon(unsigned int index);
 
   const bt::Rect& availableArea(void);
   void addStrut(bt::Netwm::Strut *strut);
@@ -284,23 +140,20 @@ public:
   void updateClientListHint(void) const;
   void updateClientListStackingHint(void) const;
   void updateDesktopNamesHint(void) const;
+  void getDesktopNames(void);
 
-  void iconifyWindow(BlackboxWindow *w);
-  void removeIcon(BlackboxWindow *w);
   void addWindow(Window w);
   void releaseWindow(BlackboxWindow *w, bool remap);
+  void reassociateWindow(BlackboxWindow *w, unsigned int wkspc_id);
+  void propagateWindowName(const BlackboxWindow *w);
+  void iconifyWindow(BlackboxWindow *w);
   void raiseWindow(BlackboxWindow *w);
   void lowerWindow(BlackboxWindow *w);
-  void propagateWindowName(const BlackboxWindow *w);
-  void placeWindow(BlackboxWindow* w);
-  void unstackWindow(BlackboxWindow* w);
 
   void raiseWindows(const bt::Netwm::WindowList* const workspace_stack);
-  BlackboxWindow* getNextWindowInList(BlackboxWindow *w) const;
-  BlackboxWindow* getPrevWindowInList(BlackboxWindow *w) const;
 
-  void nextFocus(void);
-  void prevFocus(void);
+  void nextFocus(void) const;
+  void prevFocus(void) const;
   void raiseFocus(void);
   void reconfigure(void);
   void toggleFocusModel(FocusModel model);
@@ -313,8 +166,6 @@ public:
   void clientMessageEvent(const XClientMessageEvent * const event);
   void buttonPressEvent(const XButtonEvent * const event);
   void configureRequestEvent(const XConfigureRequestEvent * const event);
-
-  virtual void timeout(void);
 };
 
 

@@ -1,6 +1,8 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Rootmenu.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -20,94 +22,64 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-// stupid macros needed to access some functions in version 2 of the GNU C
-// library
-#ifndef   _GNU_SOURCE
-#define   _GNU_SOURCE
-#endif // _GNU_SOURCE
-
 #ifdef    HAVE_CONFIG_H
 #  include "../config.h"
 #endif // HAVE_CONFIG_H
 
-#include "blackbox.hh"
 #include "Rootmenu.hh"
+
+extern "C" {
+#include <assert.h>
+}
+
 #include "Screen.hh"
-
-#ifdef    HAVE_STDIO_H
-#  include <stdio.h>
-#endif // HAVE_STDIO_H
-
-#ifdef    STDC_HEADERS
-#  include <stdlib.h>
-#  include <string.h>
-#endif // STDC_HEADERS
-
-#ifdef    HAVE_SYS_PARAM_H
-#  include <sys/param.h>
-#endif // HAVE_SYS_PARAM_H
-
-#ifndef   MAXPATHLEN
-#define   MAXPATHLEN 255
-#endif // MAXPATHLEN
+#include "Util.hh"
+#include "blackbox.hh"
 
 
-Rootmenu::Rootmenu(BScreen *scrn) : Basemenu(scrn) {
-  screen = scrn;
-  blackbox = screen->getBlackbox();
+Rootmenu::Rootmenu(bt::Application &app, unsigned int screen, BScreen *bscreen)
+  : bt::Menu(app, screen), _bscreen(bscreen) { }
+
+
+void Rootmenu::insertFunction(const std::string &label,
+                              unsigned int function,
+                              const std::string &exec,
+                              unsigned int id,
+                              unsigned int index) {
+  unsigned int x = insertItem(label, id, index);
+  _funcmap.insert(FunctionMap::value_type(x, _function(function, exec)));
 }
 
 
-void Rootmenu::itemSelected(int button, int index) {
-  if (button != 1)
-    return;
+void Rootmenu::itemClicked(unsigned int id, unsigned int) {
+  FunctionMap::const_iterator it = _funcmap.find(id);
+  if (it == _funcmap.end()) return;
 
-  BasemenuItem *item = find(index);
-
-  if (!item->function())
-    return;
-
-  switch (item->function()) {
+  switch (it->second.func) {
   case BScreen::Execute:
-    if (item->exec()) {
-#ifndef    __EMX__
-      char displaystring[MAXPATHLEN];
-      sprintf(displaystring, "DISPLAY=%s",
-	      DisplayString(screen->getBaseDisplay()->getXDisplay()));
-      sprintf(displaystring + strlen(displaystring) - 1, "%d",
-	      screen->getScreenNumber());
-
-      bexec(item->exec(), displaystring);
-#else //   __EMX__
-      spawnlp(P_NOWAIT, "cmd.exe", "cmd.exe", "/c", item->exec(), NULL);
-#endif // !__EMX__
-    }
+    if (! it->second.string.empty())
+      bt::bexec(it->second.string, _bscreen->screenInfo().displayString());
     break;
 
   case BScreen::Restart:
-    blackbox->restart();
+    _bscreen->getBlackbox()->restart();
     break;
 
   case BScreen::RestartOther:
-    if (item->exec())
-      blackbox->restart(item->exec());
+    if (! it->second.string.empty())
+      _bscreen->getBlackbox()->restart(it->second.string);
     break;
 
   case BScreen::Exit:
-    blackbox->shutdown();
+    _bscreen->getBlackbox()->quit();
     break;
 
   case BScreen::SetStyle:
-    if (item->exec())
-      blackbox->saveStyleFilename(item->exec());
+    if (! it->second.string.empty())
+      _bscreen->getBlackbox()->resource().saveStyleFilename(it->second.string);
 
   case BScreen::Reconfigure:
-    blackbox->reconfigure();
+    _bscreen->getBlackbox()->reconfigure();
     return;
-  }
-
-  if (! (screen->getRootmenu()->isTorn() || isTorn()) &&
-      item->function() != BScreen::Reconfigure &&
-      item->function() != BScreen::SetStyle)
-    hide();
+  } // switch
 }

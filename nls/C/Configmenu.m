@@ -12,16 +12,22 @@ $ #OpaqueMove
 # Opaque Window Moving
 $ #FullMax
 # Full Maximization
+$ #IgnoreShaded
+# Ignore Shaded Windows
 $ #FocusNew
 # Focus New Windows
 $ #FocusLast
 # Focus Window on Workspace Change
+$ #DisableBindings
+# Disable Bindings with Scroll Lock
 $ #ClickToFocus
 # Click to Focus
 $ #SloppyFocus
 # Sloppy Focus
 $ #AutoRaise
 # Auto Raise
+$ #ClickRaise
+# Click Raise
 $ #SmartRows
 # Smart Placement (Rows)
 $ #SmartCols
@@ -36,3 +42,9 @@ $ #TopBottom
 # Top to Bottom
 $ #BottomTop
 # Bottom to Top
+$ #NoDithering
+# Do not dither images
+$ #OrderedDithering
+# Use fast dither
+$ #FloydSteinbergDithering
+# Use high-quality dither

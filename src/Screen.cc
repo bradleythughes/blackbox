@@ -1,7 +1,8 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Screen.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -76,18 +77,16 @@ extern "C" {
 
 #include "i18n.hh"
 #include "blackbox.hh"
-#include "Clientmenu.hh"
 #include "Font.hh"
-#include "Iconmenu.hh"
 #include "Image.hh"
 #include "Menu.hh"
 #include "Netwm.hh"
 #include "Pen.hh"
+#include "PixmapCache.hh"
 #include "Resource.hh"
 #include "Screen.hh"
-#include "Rootmenu.hh"
 #include "Slit.hh"
-#include "StackingList.hh"
+#include "Rootmenu.hh"
 #include "Toolbar.hh"
 #include "Util.hh"
 #include "Window.hh"
@@ -108,15 +107,18 @@ static int anotherWMRunning(Display *display, XErrorEvent *) {
 
 
 BScreen::BScreen(Blackbox *bb, unsigned int scrn) :
-  screen_info(bb->getScreenInfo(scrn)), blackbox(bb) {
-
-  event_mask = ColormapChangeMask | EnterWindowMask | PropertyChangeMask |
-               SubstructureRedirectMask | ButtonPressMask | ButtonReleaseMask;
+  opGC(0), screen_info(bb->display().screenInfo(scrn)), blackbox(bb),
+  _resource(bb->resource().screenResource(scrn)) {
 
   XErrorHandler old = XSetErrorHandler((XErrorHandler) anotherWMRunning);
-  XSelectInput(screen_info.getDisplay().XDisplay(),
-               screen_info.getRootWindow(), event_mask);
-  XSync(screen_info.getDisplay().XDisplay(), False);
+  XSelectInput(screen_info.display().XDisplay(),
+               screen_info.rootWindow(),
+               ColormapChangeMask | EnterWindowMask | PropertyChangeMask |
+               StructureNotifyMask | // this really should go away
+               SubstructureRedirectMask |
+	       ButtonPressMask | ButtonReleaseMask);
+
+  XSync(screen_info.display().XDisplay(), False);
   XSetErrorHandler((XErrorHandler) old);
 
   managed = running;
@@ -125,114 +127,44 @@ BScreen::BScreen(Blackbox *bb, unsigned int scrn) :
   fprintf(stderr, bt::i18n(ScreenSet, ScreenManagingScreen,
                            "BScreen::BScreen: managing screen %d "
                            "using visual 0x%lx, depth %d\n"),
-          screen_info.getScreenNumber(),
-          XVisualIDFromVisual(screen_info.getVisual()),
-          screen_info.getDepth());
+          screen_info.screenNumber(),
+          XVisualIDFromVisual(screen_info.visual()),
+          screen_info.depth());
 
-  blackbox->insertEventHandler(screen_info.getRootWindow(), this);
+  blackbox->insertEventHandler(screen_info.rootWindow(), this);
 
-  rootmenu = (Rootmenu*) 0;
-  resource.stylerc = 0;
+  rootmenu = (Rootmenu *) 0;
 
-  geom_pixmap = None;
-
-  timer = new bt::Timer(blackbox, this);
-  timer->setTimeout(750l); // once every 1.5 seconds
-  timer->start();
-
-  XDefineCursor(blackbox->getXDisplay(), screen_info.getRootWindow(),
-                blackbox->getSessionCursor());
+  XDefineCursor(blackbox->XDisplay(), screen_info.rootWindow(),
+                blackbox->resource().sessionCursor());
 
   // start off full screen, top left.
-  usableArea.setSize(screen_info.getWidth(), screen_info.getHeight());
-  area_is_dirty = False;
-
-  image_control =
-    new bt::ImageControl(blackbox, screen_info.getDisplay(), &screen_info,
-                         blackbox->getCacheLife(), blackbox->getCacheMax());
-  image_control->installRootColormap();
-  root_colormap_installed = True;
-
-  blackbox->load_rc(this);
+  usableArea.setSize(screen_info.width(), screen_info.height());
 
   LoadStyle();
 
-  XGCValues gcv;
-  unsigned long gc_value_mask = GCForeground;
-  if (! bt::i18n.multibyte()) gc_value_mask |= GCFont;
+  updateOpGC();
 
-  gcv.foreground = WhitePixel(blackbox->getXDisplay(),
-                              screen_info.getScreenNumber())
-                   ^ BlackPixel(blackbox->getXDisplay(),
-                                screen_info.getScreenNumber());
-  gcv.function = GXxor;
-  gcv.subwindow_mode = IncludeInferiors;
-  opGC = XCreateGC(blackbox->getXDisplay(), screen_info.getRootWindow(),
-                   GCForeground | GCFunction | GCSubwindowMode, &gcv);
-
-  bt::Rect geomr = bt::textRect(resource.wstyle.font,
-                                bt::i18n(ScreenSet, ScreenPositionLength,
-                                         "0: 0000 x 0: 0000"));
-  geom_w = geomr.width() + (resource.bevel_width * 2);
-  geom_h = geomr.height() + (resource.bevel_width * 2);
-
-  XSetWindowAttributes setattrib;
-  unsigned long mask = CWBorderPixel | CWColormap | CWSaveUnder;
-  setattrib.border_pixel =
-    resource.border_color.pixel(screen_info.getScreenNumber());
-  setattrib.colormap = screen_info.getColormap();
-  setattrib.save_under = True;
-
-  geom_window = XCreateWindow(blackbox->getXDisplay(),
-                              screen_info.getRootWindow(),
-                              0, 0, geom_w, geom_h, resource.border_width,
-                              screen_info.getDepth(), InputOutput,
-                              screen_info.getVisual(),
-                              mask, &setattrib);
+  geom_pixmap = None;
   geom_visible = False;
+  geom_window = None;
 
-  bt::Texture* texture = &(resource.wstyle.l_focus);
-  geom_pixmap =
-    texture->render(blackbox->getDisplay(), screen_info.getScreenNumber(),
-                    *image_control,
-                    geom_w, geom_h, geom_pixmap);
-  if (geom_pixmap == ParentRelative) {
-    texture = &(resource.wstyle.t_focus);
-    geom_pixmap =
-      texture->render(blackbox->getDisplay(), screen_info.getScreenNumber(),
-                      *image_control,
-                      geom_w, geom_h, geom_pixmap);
-  }
-  if (! geom_pixmap)
-    XSetWindowBackground(blackbox->getXDisplay(), geom_window,
-                         texture->color().pixel(screen_info.getScreenNumber()));
-  else
-    XSetWindowBackgroundPixmap(blackbox->getXDisplay(),
-                               geom_window, geom_pixmap);
+  updateGeomWindow();
 
-  stackmenu =
-    new Stackmenu(*blackbox, screen_info.getScreenNumber(), this);
+#if 0
+  workspacemenu =
+    new Workspacemenu(*blackbox, screen_info.screenNumber(), this);
   iconmenu =
-    new Iconmenu(*blackbox, screen_info.getScreenNumber(), this);
+    new Iconmenu(*blackbox, screen_info.screenNumber(), this);
+#endif
   configmenu =
-    new Configmenu(*blackbox, screen_info.getScreenNumber(), this);
-  clientmenu =
-    new Clientmenu(*blackbox, *this);
-  clientmenu->setTitle("window list");
-  stackmenu->insertItem("Stack", clientmenu, 498u);
-  stackmenu->insertSeparator();
-  stackmenu->insertItem(bt::i18n(IconSet, IconIcons, "Icons"),
-                        iconmenu, 499u);
+    new Configmenu(*blackbox, screen_info.screenNumber(), this);
 
   toolbar = new Toolbar(this);
 
   slit = new Slit(this);
 
   InitMenu();
-
-  cascade_x = cascade_y = 32;
-
-  stackingList = new StackingList;
 
   raiseWindows((WindowStack*) 0);
 
@@ -243,19 +175,25 @@ BScreen::BScreen(Blackbox *bb, unsigned int scrn) :
     on the root window.  Then we must set _NET_WM_NAME on the child window
     to be the name of the wm.
   */
-  netwm.setSupportingWMCheck(screen_info.getRootWindow(), geom_window);
+  netwm.setSupportingWMCheck(screen_info.rootWindow(), geom_window);
   netwm.setSupportingWMCheck(geom_window, geom_window);
   netwm.setWMName(geom_window, "Blackbox");
 
-  netwm.setDesktopGeometry(screen_info.getRootWindow(),
-                           screen_info.getWidth(), screen_info.getHeight());
-  netwm.setActiveWindow(screen_info.getRootWindow(), None);
-  updateWorkareaHint();
+  netwm.setNumberOfDesktops(screen_info.rootWindow(), 1);
 
-  Atom supported[41] = {
+  netwm.setDesktopGeometry(screen_info.rootWindow(),
+                           screen_info.width(), screen_info.height());
+  netwm.setActiveWindow(screen_info.rootWindow(), None);
+  updateWorkareaHint();
+  updateDesktopNamesHint();
+
+  Atom supported[46] = {
     netwm.clientList(),
     netwm.clientListStacking(),
+    netwm.numberOfDesktops(),
     netwm.desktopGeometry(),
+    netwm.currentDesktop(),
+    netwm.desktopNames(),
     netwm.activeWindow(),
     netwm.workarea(),
     netwm.closeWindow(),
@@ -264,6 +202,7 @@ BScreen::BScreen(Blackbox *bb, unsigned int scrn) :
     netwm.wmVisibleName(),
     netwm.wmIconName(),
     netwm.wmVisibleIconName(),
+    netwm.wmDesktop(),
     netwm.wmWindowType(),
     netwm.wmWindowTypeDesktop(),
     netwm.wmWindowTypeDock(),
@@ -293,28 +232,30 @@ BScreen::BScreen(Blackbox *bb, unsigned int scrn) :
     netwm.wmActionMaximizeHorz(),
     netwm.wmActionMaximizeVert(),
     netwm.wmActionFullscreen(),
+    netwm.wmActionChangeDesktop(),
     netwm.wmActionClose(),
     netwm.wmStrut()
   };
 
-  netwm.setSupported(screen_info.getRootWindow(), supported, 41);
+  netwm.setSupported(screen_info.rootWindow(), supported, 46);
 
-  unsigned int i, j, nchild;
+  cascade_x = cascade_y = 0;
+
+  unsigned int nchild;
   Window r, p, *children;
-  XQueryTree(blackbox->getXDisplay(), screen_info.getRootWindow(), &r, &p,
+  XQueryTree(blackbox->XDisplay(), screen_info.rootWindow(), &r, &p,
              &children, &nchild);
 
   // preen the window list of all icon windows... for better dockapp support
-  for (i = 0; i < nchild; i++) {
+  for (unsigned int i = 0; i < nchild; i++) {
     if (children[i] == None) continue;
 
-    XWMHints *wmhints = XGetWMHints(blackbox->getXDisplay(),
-                                    children[i]);
+    XWMHints *wmhints = XGetWMHints(blackbox->XDisplay(), children[i]);
 
     if (wmhints) {
       if ((wmhints->flags & IconWindowHint) &&
           (wmhints->icon_window != children[i])) {
-        for (j = 0; j < nchild; j++) {
+        for (unsigned int j = 0; j < nchild; j++) {
           if (children[j] == wmhints->icon_window) {
             children[j] = None;
             break;
@@ -327,12 +268,12 @@ BScreen::BScreen(Blackbox *bb, unsigned int scrn) :
   }
 
   // manage shown windows
-  for (i = 0; i < nchild; ++i) {
+  for (unsigned int i = 0; i < nchild; ++i) {
     if (children[i] == None || ! blackbox->validateWindow(children[i]))
       continue;
 
     XWindowAttributes attrib;
-    if (XGetWindowAttributes(blackbox->getXDisplay(), children[i], &attrib)) {
+    if (XGetWindowAttributes(blackbox->XDisplay(), children[i], &attrib)) {
       if (attrib.override_redirect) continue;
 
       if (attrib.map_state != IsUnmapped) {
@@ -351,93 +292,107 @@ BScreen::BScreen(Blackbox *bb, unsigned int scrn) :
 BScreen::~BScreen(void) {
   if (! managed) return;
 
-  blackbox->removeEventHandler(screen_info.getRootWindow());
+  blackbox->removeEventHandler(screen_info.rootWindow());
 
-  if (geom_pixmap != None)
-    image_control->removeImage(geom_pixmap);
+  bt::PixmapCache::release(geom_pixmap);
 
   if (geom_window != None)
-    XDestroyWindow(blackbox->getXDisplay(), geom_window);
-
-  std::for_each(iconList.begin(), iconList.end(), bt::PointerAssassin());
+    XDestroyWindow(blackbox->XDisplay(), geom_window);
 
   delete rootmenu;
-  delete stackmenu;
-  delete iconmenu;
   delete configmenu;
   delete slit;
   delete toolbar;
-  delete image_control;
-  delete timer;
-  delete stackingList;
 
-  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
+  blackbox->netwm().removeProperty(screen_info.rootWindow(),
                                    blackbox->netwm().supportingWMCheck());
-  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
+  blackbox->netwm().removeProperty(screen_info.rootWindow(),
                                    blackbox->netwm().supported());
-  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
+  blackbox->netwm().removeProperty(screen_info.rootWindow(),
+                                   blackbox->netwm().numberOfDesktops());
+  blackbox->netwm().removeProperty(screen_info.rootWindow(),
                                    blackbox->netwm().desktopGeometry());
-  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
-                                   blackbox->netwm().desktopNames());
-  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
+  blackbox->netwm().removeProperty(screen_info.rootWindow(),
+                                   blackbox->netwm().currentDesktop());
+  blackbox->netwm().removeProperty(screen_info.rootWindow(),
                                    blackbox->netwm().activeWindow());
-  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
+  blackbox->netwm().removeProperty(screen_info.rootWindow(),
                                    blackbox->netwm().workarea());
-  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
-                                   blackbox->netwm().clientList());
-  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
-                                   blackbox->netwm().clientListStacking());
 
-  XFreeGC(blackbox->getXDisplay(), opGC);
+  XFreeGC(blackbox->XDisplay(), opGC);
+}
+
+
+void BScreen::updateGeomWindow(void) {
+  const char *s =
+    bt::i18n(ScreenSet, ScreenPositionLength, "0: 0000 x 0: 0000");
+  bt::Rect geomr = bt::textRect(_resource.windowStyle()->font, s);
+  geom_w = geomr.width() + (_resource.bevelWidth() * 2);
+  geom_h = geomr.height() + (_resource.bevelWidth() * 2);
+
+  if (geom_window == None) {
+    XSetWindowAttributes setattrib;
+    unsigned long mask = CWBorderPixel | CWColormap | CWSaveUnder;
+    setattrib.border_pixel =
+      _resource.borderColor()->pixel(screen_info.screenNumber());
+    setattrib.colormap = screen_info.colormap();
+    setattrib.save_under = True;
+
+    geom_window = XCreateWindow(blackbox->XDisplay(),
+                                screen_info.rootWindow(),
+                                0, 0, geom_w, geom_h, _resource.borderWidth(),
+                                screen_info.depth(), InputOutput,
+                                screen_info.visual(), mask, &setattrib);
+  } else {
+    XSetWindowBorderWidth(blackbox->XDisplay(), geom_window,
+                          _resource.borderWidth());
+    XSetWindowBorder(blackbox->XDisplay(), geom_window,
+                     _resource.borderColor()->pixel(screen_info.screenNumber()));
+  }
+
+  bt::Texture texture = _resource.windowStyle()->l_focus;
+  geom_pixmap = bt::PixmapCache::find(screen_info.screenNumber(),
+                                      texture, geom_w, geom_h, geom_pixmap);
+  if (geom_pixmap == ParentRelative) {
+    texture = _resource.windowStyle()->t_focus;
+    geom_pixmap = bt::PixmapCache::find(screen_info.screenNumber(),
+                                        texture, geom_w, geom_h, geom_pixmap);
+  }
+  if (! geom_pixmap)
+    XSetWindowBackground(blackbox->XDisplay(), geom_window,
+                         texture.color().pixel(screen_info.screenNumber()));
+  else
+    XSetWindowBackgroundPixmap(blackbox->XDisplay(),
+                               geom_window, geom_pixmap);
+}
+
+
+void BScreen::updateOpGC(void) {
+  XGCValues gcv;
+  unsigned long gc_value_mask = GCForeground;
+  if (! bt::i18n.multibyte()) gc_value_mask |= GCFont;
+
+  gcv.foreground = WhitePixel(blackbox->XDisplay(),
+                              screen_info.screenNumber())
+                   ^ BlackPixel(blackbox->XDisplay(),
+                                screen_info.screenNumber());
+  gcv.function = GXxor;
+  gcv.subwindow_mode = IncludeInferiors;
+  if (! opGC)
+    opGC = XCreateGC(blackbox->XDisplay(), screen_info.rootWindow(),
+                     GCForeground | GCFunction | GCSubwindowMode, &gcv);
+  else 
+    XChangeGC(blackbox->XDisplay(), opGC,
+              GCForeground | GCFunction | GCSubwindowMode, &gcv);
 }
 
 
 void BScreen::reconfigure(void) {
   LoadStyle();
 
-  XGCValues gcv;
-  unsigned long gc_value_mask = GCForeground;
-  if (! bt::i18n.multibyte()) gc_value_mask |= GCFont;
+  updateOpGC();
 
-  gcv.foreground = WhitePixel(blackbox->getXDisplay(),
-                              screen_info.getScreenNumber());
-  gcv.function = GXinvert;
-  gcv.subwindow_mode = IncludeInferiors;
-  XChangeGC(blackbox->getXDisplay(), opGC,
-            GCForeground | GCFunction | GCSubwindowMode, &gcv);
-
-  const char *s =
-    bt::i18n(ScreenSet, ScreenPositionLength, "0: 0000 x 0: 0000");
-  bt::Rect geomr = bt::textRect(resource.wstyle.font, s);
-  geom_w = geomr.width() + (resource.bevel_width * 2);
-  geom_h = geomr.height() + (resource.bevel_width * 2);
-
-  bt::Texture* texture = &(resource.wstyle.l_focus);
-  geom_pixmap = texture->render(blackbox->getDisplay(),
-                                screen_info.getScreenNumber(),
-                                *image_control,
-                                geom_w, geom_h, geom_pixmap);
-  if (geom_pixmap == ParentRelative) {
-    texture = &(resource.wstyle.t_focus);
-    geom_pixmap = texture->render(blackbox->getDisplay(),
-                                  screen_info.getScreenNumber(),
-                                  *image_control,
-                                  geom_w, geom_h, geom_pixmap);
-  }
-  if (! geom_pixmap)
-    XSetWindowBackground(blackbox->getXDisplay(), geom_window,
-                         texture->color().pixel(screen_info.getScreenNumber()));
-  else
-    XSetWindowBackgroundPixmap(blackbox->getXDisplay(),
-                               geom_window, geom_pixmap);
-
-  XSetWindowBorderWidth(blackbox->getXDisplay(), geom_window,
-                        resource.border_width);
-  XSetWindowBorder(blackbox->getXDisplay(), geom_window,
-                   resource.border_color.pixel(screen_info.getScreenNumber()));
-
-  stackmenu->reconfigure();
-  iconmenu->reconfigure();
+  updateGeomWindow();
 
   InitMenu();
   raiseWindows((WindowStack*) 0);
@@ -448,19 +403,6 @@ void BScreen::reconfigure(void) {
   toolbar->reconfigure();
 
   slit->reconfigure();
-
-  BlackboxWindowList::iterator iit = iconList.begin();
-  for (; iit != iconList.end(); ++iit) {
-    BlackboxWindow *bw = *iit;
-    if (bw->validateClient())
-      bw->reconfigure();
-  }
-
-  StackingList::reverse_iterator sit = stackingList->rbegin();
-  for (; sit != stackingList->rend(); ++sit)
-    if (*sit) (*sit)->reconfigure();
-
-  image_control->timeout();
 }
 
 
@@ -473,237 +415,15 @@ void BScreen::rereadMenu(void) {
 
 
 void BScreen::LoadStyle(void) {
-  const bt::Display &display = blackbox->getDisplay();
-  unsigned int screen = screen_info.getScreenNumber();
+  _resource.loadStyle(this, blackbox->resource().styleFilename());
 
-  // use the user selected style
-  bt::Resource res(std::string(blackbox->getStyleFilename()));
-  if (! res.valid())
-    res.load(std::string(DEFAULTSTYLE));
-
-  // load bevel, border and handle widths
-  std::string wstr = res.read("borderWidth", "BorderWidth", "1");
-  resource.border_width =
-    static_cast<unsigned int>(strtoul(wstr.c_str(), 0, 0));
-  wstr = res.read("bevelWidth", "BevelWidth", "3");
-  resource.bevel_width =
-    static_cast<unsigned int>(strtoul(wstr.c_str(), 0, 0));
-
-  // load menu style
-  bt::MenuStyle::get(*blackbox, screen, image_control)->load(res);
-
-  // load fonts
-  resource.wstyle.font = bt::Font(res.read("window.font", "Window.Font",
-                                           "fixed"));
-  resource.tstyle.font = bt::Font(res.read("toolbar.font", "Toolbar.Font",
-                                           "fixed"));
-
-  // load window config
-  resource.wstyle.t_focus =
-    bt::textureResource(display, screen, res,
-                        "window.title.focus", "Window.Title.Focus",
-                        "white");
-  resource.wstyle.t_unfocus =
-    bt::textureResource(display, screen, res,
-                        "window.title.unfocus", "Window.Title.Unfocus",
-                        "black");
-  resource.wstyle.l_focus =
-    bt::textureResource(display, screen, res,
-                        "window.label.focus", "Window.Label.Focus",
-                        "white");
-  resource.wstyle.l_unfocus =
-    bt::textureResource(display, screen, res,
-                        "window.label.unfocus", "Window.Label.Unfocus",
-                        "black");
-  resource.wstyle.h_focus =
-    bt::textureResource(display, screen, res,
-                        "window.handle.focus", "Window.Handle.Focus",
-                        "white");
-  resource.wstyle.h_unfocus =
-    bt::textureResource(display, screen, res,
-                        "window.handle.unfocus", "Window.Handle.Unfocus",
-                        "black");
-
-  wstr = res.read("window.handleWidth", "Window.HandleWidth", "6");
-  resource.wstyle.handle_width =
-    static_cast<unsigned int>(strtoul(wstr.c_str(), 0, 0));
-
-  resource.wstyle.g_focus =
-    bt::textureResource(display, screen, res,
-                        "window.grip.focus", "Window.Grip.Focus",
-                        "white");
-  resource.wstyle.g_unfocus =
-    bt::textureResource(display, screen, res,
-                        "window.grip.unfocus", "Window.Grip.Unfocus",
-                        "black");
-  resource.wstyle.b_focus =
-    bt::textureResource(display, screen, res,
-                        "window.button.focus", "Window.Button.Focus",
-                        "white");
-  resource.wstyle.b_unfocus =
-    bt::textureResource(display, screen, res,
-                        "window.button.unfocus", "Window.Button.Unfocus",
-                        "black");
-  resource.wstyle.b_pressed =
-    bt::textureResource(display, screen, res,
-                        "window.button.pressed", "Window.Button.Pressed",
-                        "black");
-
-  // we create the window.frame texture by hand because it exists only to
-  // make the code cleaner and is not actually used for display
-  bt::Color color = bt::Color::namedColor(display, screen,
-                                          res.read("window.frame.focusColor",
-                                                   "Window.Frame.FocusColor",
-                                                   "white"));
-  resource.wstyle.f_focus.setDescription("solid flat");
-  resource.wstyle.f_focus.setColor(color);
-
-  color = bt::Color::namedColor(display, screen,
-                                res.read("window.frame.unfocusColor",
-                                         "Window.Frame.UnfocusColor",
-                                         "white"));
-  resource.wstyle.f_unfocus.setDescription("solid flat");
-  resource.wstyle.f_unfocus.setColor(color);
-
-  wstr = res.read("window.frameWidth", "Window.FrameWidth",
-                  bt::itostring(resource.bevel_width));
-  resource.wstyle.frame_width =
-    static_cast<unsigned int>(strtoul(wstr.c_str(), 0, 0));
-
-    bt::Color::namedColor(display, screen,
-                          res.read("window.label.focus.textColor",
-                                   "Window.Label.Focus.TextColor",
-                                   "black"));
-  resource.wstyle.l_text_unfocus =
-    bt::Color::namedColor(display, screen,
-                          res.read("window.label.unfocus.textColor",
-                                   "Window.Label.Unfocus.TextColor",
-                                   "white"));
-  resource.wstyle.b_pic_focus =
-    bt::Color::namedColor(display, screen,
-                          res.read("window.button.focus.picColor",
-                                   "Window.Button.Focus.PicColor",
-                                   "black"));
-  resource.wstyle.b_pic_unfocus =
-    bt::Color::namedColor(display, screen,
-                          res.read("window.button.unfocus.picColor",
-                                   "Window.Button.Unfocus.PicColor",
-                                   "white"));
-
-  resource.wstyle.alignment =
-    bt::alignResource(res, "window.alignment", "Window.Alignment");
-
-  // load toolbar config
-  resource.tstyle.toolbar =
-    bt::textureResource(display, screen, res,
-                        "toolbar", "Toolbar",
-                        "black");
-  resource.tstyle.label =
-    bt::textureResource(display, screen, res,
-                        "toolbar.label", "Toolbar.Label",
-                        "black");
-  resource.tstyle.window =
-    bt::textureResource(display, screen, res,
-                        "toolbar.windowLabel", "Toolbar.WindowLabel",
-                        "black");
-  resource.tstyle.button =
-    bt::textureResource(display, screen, res,
-                        "toolbar.button", "Toolbar.Button",
-                        "white");
-  resource.tstyle.pressed =
-    bt::textureResource(display, screen, res,
-                        "toolbar.button.pressed", "Toolbar.Button.Pressed",
-                        "black");
-  resource.tstyle.clock =
-    bt::textureResource(display, screen, res,
-                        "toolbar.clock", "Toolbar.Clock",
-                        "black");
-
-  resource.tstyle.l_text =
-    bt::Color::namedColor(display, screen,
-                          res.read("toolbar.label.textColor",
-                                   "Toolbar.Label.TextColor",
-                                   "white"));
-  resource.tstyle.w_text =
-    bt::Color::namedColor(display, screen,
-                          res.read("toolbar.windowLabel.textColor",
-                                   "Toolbar.WindowLabel.TextColor",
-                                   "white"));
-  resource.tstyle.c_text =
-    bt::Color::namedColor(display, screen,
-                          res.read("toolbar.clock.textColor",
-                                   "Toolbar.Clock.TextColor",
-                                   "white"));
-  resource.tstyle.b_pic =
-    bt::Color::namedColor(display, screen,
-                          res.read("toolbar.button.picColor",
-                                   "Toolbar.Button.PicColor",
-                                   "black"));
-  resource.border_color =
-    bt::Color::namedColor(display, screen,
-                          res.read("borderColor",
-                                   "BorderColor",
-                                   "black"));
-
-  resource.tstyle.alignment =
-    bt::alignResource(res, "toolbar.alignment", "Toolbar.Alignment");
-
-  std::string root_command = res.read("rootCommand", "RootCommand");
-  if (! root_command.empty())
-    bt::bexec(root_command, displayString());
-
-  // sanity checks
-  if (resource.wstyle.t_focus.texture() == bt::Texture::Parent_Relative)
-    resource.wstyle.t_focus = resource.wstyle.f_focus;
-  if (resource.wstyle.t_unfocus.texture() == bt::Texture::Parent_Relative)
-    resource.wstyle.t_unfocus = resource.wstyle.f_unfocus;
-  if (resource.wstyle.h_focus.texture() == bt::Texture::Parent_Relative)
-    resource.wstyle.h_focus = resource.wstyle.f_focus;
-  if (resource.wstyle.h_unfocus.texture() == bt::Texture::Parent_Relative)
-    resource.wstyle.h_unfocus = resource.wstyle.f_unfocus;
-
-  if (resource.tstyle.toolbar.texture() == bt::Texture::Parent_Relative) {
-    resource.tstyle.toolbar.setTexture(bt::Texture::Flat |
-                                       bt::Texture::Solid);
-    resource.tstyle.toolbar.setColor(bt::Color(0, 0, 0));
-  }
-
-  XrmDestroyDatabase(resource.stylerc);
-  resource.stylerc = 0;
+  if (! _resource.rootCommand().empty())
+    bt::bexec(_resource.rootCommand(), screen_info.displayString());
 }
 
 
 void BScreen::iconifyWindow(BlackboxWindow *w) {
   assert(w != 0);
-
-  stackingList->remove(w);
-  clientmenu->removeItem(w->getWindowNumber());
-
-  int id = iconmenu->insertItem(bt::ellideText(w->getIconTitle(), 60, "..."));
-  w->setWindowNumber(id);
-  iconList.push_back(w);
-}
-
-
-void BScreen::removeIcon(BlackboxWindow *w) {
-  assert(w != 0);
-  iconList.remove(w);
-  iconmenu->removeItem(w->getWindowNumber());
-
-  unsigned int id =
-    clientmenu->insertItem(bt::ellideText(w->getTitle(), 60, "..."));
-  w->setWindowNumber(id);
-}
-
-
-BlackboxWindow *BScreen::getIcon(unsigned int index) {
-  if (index < iconList.size()) {
-    BlackboxWindowList::iterator it = iconList.begin();
-    std::advance<BlackboxWindowList::iterator, signed>(it, index);
-    return *it;
-  }
-
-  return (BlackboxWindow *) 0;
 }
 
 
@@ -716,7 +436,7 @@ void BScreen::addWindow(Window w) {
 
 
 void BScreen::manageWindow(Window w) {
-  XWMHints *wmhint = XGetWMHints(blackbox->getXDisplay(), w);
+  XWMHints *wmhint = XGetWMHints(blackbox->XDisplay(), w);
   if (wmhint && (wmhint->flags & StateHint) &&
       wmhint->initial_state == WithdrawnState) {
     slit->addClient(w);
@@ -729,20 +449,18 @@ void BScreen::manageWindow(Window w) {
   if (! win)
     return;
 
+  windowList.push_back(win);
+
   bool place_window = True;
-  if (blackbox->isStartup() ||
+  if (blackbox->startingUp() ||
       ((win->isTransient() || win->normalHintFlags() & (PPosition|USPosition))
-       && win->clientRect().intersects(screen_info.getRect())))
+       && win->clientRect().intersects(screen_info.rect())))
     place_window = False;
 
-  stackingList->insert(win);
-  windowList.push_back(win);
-  unsigned int id =
-    clientmenu->insertItem(bt::ellideText(win->getTitle(), 60, "..."));
-  win->setWindowNumber(id);
+  if (place_window) placeWindow(win);
 
-  if (place_window)
-    placeWindow(win);
+  // stackingList.push_front(win);
+  // raiseWindow(win);
 
   XMapRequestEvent mre;
   mre.window = w;
@@ -761,11 +479,6 @@ void BScreen::unmanageWindow(BlackboxWindow *w, bool remap) {
 
   if (w->isModal()) w->setModal(False);
 
-  if (w->isIconic())
-    removeIcon(w);
-  else
-    stackingList->remove(w);
-
   windowList.remove(w);
 
   if (blackbox->getFocusedWindow() == w)
@@ -782,176 +495,19 @@ void BScreen::unmanageWindow(BlackboxWindow *w, bool remap) {
 }
 
 
-/*
- * returns the number of transients for win, plus the number of transients
- * associated with each transient of win
- */
-static unsigned int countTransients(const BlackboxWindow * const win) {
-  BlackboxWindowList transients = win->getTransients();
-  if (transients.empty()) return 0;
-
-  unsigned int ret = transients.size();
-  BlackboxWindowList::const_iterator it = transients.begin(),
-    end = transients.end();
-  for (; it != end; ++it)
-    ret += countTransients(*it);
-
-  return ret;
-}
-
-
-/*
- * puts the transients of win into the stack. windows are stacked above
- * the window before it in the stackvector being iterated, meaning
- * stack[0] is on bottom, stack[1] is above stack[0], stack[2] is above
- * stack[1], etc...
- */
-void BScreen::raiseTransients(const BlackboxWindow * const win,
-                              WindowStack& stack) {
-  if (win->getTransients().empty()) return; // nothing to do
-
-  // put transients of win's transients in the stack
-  BlackboxWindowList::const_reverse_iterator it,
-    end = win->getTransients().rend();
-  for (it = win->getTransients().rbegin(); it != end; ++it)
-    raiseTransients(*it, stack);
-
-  // put win's transients in the stack
-  for (it = win->getTransients().rbegin(); it != end; ++it) {
-    BlackboxWindow *w = *it;
-    if (! w->isIconic()) {
-      stack.push_back(w->getFrameWindow());
-      stackingList->remove(w);
-      stackingList->insert(w);
-    }
-  }
-}
-
-
 void BScreen::raiseWindow(BlackboxWindow *w) {
-  BlackboxWindow *win = w;
-
-  // walk up the transient_for's to the window that is not a transient
-  while (win->isTransient() && win->getTransientFor())
-    win = win->getTransientFor();
-
-  // stack the window with all transients above
-  WindowStack stack_vector;
-  bool layer_above = False;
-  StackingList::iterator it = stackingList->findLayer(win);
-  StackingList::iterator tmp = it;
-  for (; tmp != stackingList->begin(); --tmp) {
-    if (*tmp && it != tmp)
-      break;
-  }
-  if (*tmp) {
-    stack_vector.push_back((*tmp)->getFrameWindow());
-    layer_above = True;
-  }
-
-  raiseTransients(win, stack_vector);
-
-  if (! win->isIconic()) {
-    stack_vector.push_back(win->getFrameWindow());
-    if (std::find(stackingList->begin(),
-                  stackingList->end(), win) != stackingList->end())
-      stackingList->remove(win);
-    stackingList->insert(win);
-  }
-
-  assert(! stack_vector.empty());
-  if (! layer_above)
-    XRaiseWindow(getBlackbox()->getXDisplay(), stack_vector.front());
-
-  XRestackWindows(getBlackbox()->getXDisplay(), &stack_vector[0],
-                  stack_vector.size());
-  raiseWindows(0);
-}
-
-
-void BScreen::lowerTransients(const BlackboxWindow * const win,
-                                WindowStack& stack) {
-  if (win->getTransients().empty()) return; // nothing to do
-
-  // put transients of win's transients in the stack
-  BlackboxWindowList::const_reverse_iterator it,
-    end = win->getTransients().rend();
-  for (it = win->getTransients().rbegin(); it != end; ++it)
-    lowerTransients(*it, stack);
-
-  // put win's transients in the stack
-  for (it = win->getTransients().rbegin(); it != end; ++it) {
-    BlackboxWindow *w = *it;
-    if (! w->isIconic()) {
-      stack.push_back(w->getFrameWindow());
-      stackingList->remove(w);
-      stackingList->append(w);
-    }
-  }
+  assert(w);
 }
 
 
 void BScreen::lowerWindow(BlackboxWindow *w) {
-  BlackboxWindow *win = w;
-
-  // walk up the transient_for's to the window that is not a transient
-  while (win->isTransient() && win->getTransientFor())
-    win = win->getTransientFor();
-
-  WindowStack stack_vector;
-  bool layer_above = False;
-  StackingList::iterator it = stackingList->findLayer(win);
-  StackingList::iterator tmp = it;
-  for (; tmp != stackingList->begin(); --tmp) {
-    if (*tmp && it != tmp)
-      break;
-  }
-  if (*tmp) {
-    stack_vector.push_back((*tmp)->getFrameWindow());
-    layer_above = True;
-  }
-
-  // stack the window with all transients above
-  lowerTransients(win, stack_vector);
-
-  if (! win->isIconic()) {
-    stack_vector.push_back(win->getFrameWindow());
-    stackingList->remove(win);
-    stackingList->append(win);
-  }
-
-  assert(! stack_vector.empty());
-
-  if (! layer_above) {
-    // ok, no layers above us, how about below?
-    tmp = std::find(it, stackingList->end(), (BlackboxWindow*) 0);
-    assert(tmp != stackingList->end());
-    for (; tmp != stackingList->end(); ++tmp) {
-      if (*tmp && it != tmp)
-        break;
-    }
-    if (tmp != stackingList->end() && *tmp) {
-      XWindowChanges changes;
-      changes.sibling = (*tmp)->getFrameWindow();
-      changes.stack_mode = Above;
-      XConfigureWindow(getBlackbox()->getXDisplay(),
-                       stack_vector.front(), CWStackMode | CWSibling,
-                       &changes);
-    } else {
-      XLowerWindow(getBlackbox()->getXDisplay(),
-                   stack_vector.front());
-    }
-  }
-
-  XRestackWindows(getBlackbox()->getXDisplay(), &stack_vector[0],
-                  stack_vector.size());
-  raiseWindows(0);
+  assert(w);
 }
 
 
 void
 BScreen::raiseWindows(const bt::Netwm::WindowList* const workspace_stack) {
-  // the 8 represents the number of blackbox windows such as the toolbar
+  // the 8 represents the number of blackbox windows such as menus
   const unsigned int workspace_stack_size =
     (workspace_stack) ? workspace_stack->size() : 0;
   std::vector<Window> session_stack(workspace_stack_size + 2);
@@ -967,8 +523,8 @@ BScreen::raiseWindows(const bt::Netwm::WindowList* const workspace_stack) {
     std::copy(workspace_stack->rbegin(), workspace_stack->rend(), it);
 
   if (! session_stack.empty()) {
-    XRaiseWindow(blackbox->getXDisplay(), session_stack[0]);
-    XRestackWindows(blackbox->getXDisplay(), &session_stack[0],
+    XRaiseWindow(blackbox->XDisplay(), session_stack[0]);
+    XRestackWindows(blackbox->XDisplay(), &session_stack[0],
                     session_stack.size());
   }
 
@@ -976,104 +532,75 @@ BScreen::raiseWindows(const bt::Netwm::WindowList* const workspace_stack) {
 }
 
 
-void BScreen::unstackWindow(BlackboxWindow* w) {
-  stackingList->remove(w);
-}
+void BScreen::reassociateWindow(BlackboxWindow *w, unsigned int wkspc_id) {
+  if (! w) return;
 
-
-void BScreen::saveStrftimeFormat(const std::string& format) {
-  resource.strftime_format = format;
+  wkspc_id = wkspc_id - 0; // just to quiet the compiler
 }
 
 
 void BScreen::propagateWindowName(const BlackboxWindow *w) {
-  if (! w->isIconic()) {
-    if (blackbox->getFocusedWindow() == w)
-      toolbar->redrawWindowLabel(True);
-  } else {
-    iconmenu->changeItem(w->getWindowNumber(), w->getIconTitle());
-  }
+  if (blackbox->getFocusedWindow() == w)
+    toolbar->redrawWindowLabel();
 }
 
 
-BlackboxWindow* BScreen::getNextWindowInList(BlackboxWindow *w) const {
-  StackingList::const_iterator it = std::find(stackingList->begin(),
-                                              stackingList->end(),
-                                              w);
-  assert(it != stackingList->end());   // window must be in list
-  ++it;                               // next window
-  if (it == stackingList->end())
-    return stackingList->front();      // if we walked off the end, wrap around
-
-  return *it;
-}
-
-
-BlackboxWindow* BScreen::getPrevWindowInList(BlackboxWindow *w) const {
-  StackingList::const_iterator it = std::find(stackingList->begin(),
-                                              stackingList->end(),
-                                              w);
-  assert(it != stackingList->end()); // window must be in list
-  if (it == stackingList->begin())
-    return stackingList->back();     // if we walked of the front, wrap around
-
-  return *(--it);
-}
-
-
-void BScreen::nextFocus(void) {
-  BlackboxWindow *focused = blackbox->getFocusedWindow(),
-    *next = focused;
+void BScreen::nextFocus(void) const {
+#if 0
+  BlackboxWindow *focused = blackbox->getFocusedWindow(), *next = focused;
 
   if (focused &&
-      focused->getScreen()->screen_info.getScreenNumber() ==
-      screen_info.getScreenNumber()) {
+      focused->getScreen()->screen_info.screenNumber() ==
+      screen_info.screenNumber() && windowList.size() > 1) {
     do {
-      next = getNextWindowInList(next);
+      next = current_workspace->getNextWindowInList(next);
     } while(next != focused && ! next->setInputFocus());
 
     if (next != focused)
-      raiseWindow(next);
-  } else if (! stackingList->empty()) {
-    next = stackingList->front();
+      current_workspace->raiseWindow(next);
+  } else if (current_workspace->getCount() > 0) {
+    next = current_workspace->getTopWindowOnStack();
 
     next->setInputFocus();
-    raiseWindow(next);
+    current_workspace->raiseWindow(next);
   }
+#endif
 }
 
 
-void BScreen::prevFocus(void) {
-  BlackboxWindow *focused = blackbox->getFocusedWindow(),
-    *next = focused;
+void BScreen::prevFocus(void) const {
+#if 0
+  BlackboxWindow *focused = blackbox->getFocusedWindow(), *next = focused;
 
   if (focused &&
-      focused->getScreen()->screen_info.getScreenNumber() ==
-      screen_info.getScreenNumber()) {
+      focused->getScreen()->screen_info.screenNumber() ==
+      screen_info.screenNumber() &&
+      current_workspace->getCount() > 1) {
     do {
-      next = getPrevWindowInList(next);
+      next = current_workspace->getPrevWindowInList(next);
     } while(next != focused && ! next->setInputFocus());
 
     if (next != focused)
-      raiseWindow(next);
-  } else if (! stackingList->empty()) {
-    next = stackingList->front();
+      current_workspace->raiseWindow(next);
+  } else if (current_workspace->getCount() > 0) {
+    next = current_workspace->getTopWindowOnStack();
 
     next->setInputFocus();
-    raiseWindow(next);
+    current_workspace->raiseWindow(next);
   }
+#endif
 }
 
 
 void BScreen::raiseFocus(void) {
-  BlackboxWindow *focused = blackbox->getFocusedWindow();
-  if (! focused)
+  BlackboxWindow *win = blackbox->getFocusedWindow();
+  if (! win)
     return;
 
-  // if on this Screen, raise it
-  if (focused->getScreen()->screen_info.getScreenNumber() ==
-      screen_info.getScreenNumber())
-    raiseWindow(focused);
+  // walk up the transient_for's to the window that is not a transient
+  while (win->isTransient() && win->getTransientFor())
+    win = win->getTransientFor();
+  raiseWindows((bt::Netwm::WindowList*) 0);
 }
 
 
@@ -1081,21 +608,21 @@ void BScreen::InitMenu(void) {
   if (rootmenu) {
     rootmenu->clear();
   } else {
-    rootmenu = new Rootmenu(*blackbox, screen_info.getScreenNumber(), this);
+    rootmenu = new Rootmenu(*blackbox, screen_info.screenNumber(), this);
     rootmenu->showTitle();
   }
   bool defaultMenu = True;
 
-  if (blackbox->getMenuFilename()) {
-    FILE *menu_file = fopen(blackbox->getMenuFilename(), "r");
+  if (blackbox->resource().menuFilename()) {
+    FILE *menu_file = fopen(blackbox->resource().menuFilename(), "r");
 
     if (!menu_file) {
-      perror(blackbox->getMenuFilename());
+      perror(blackbox->resource().menuFilename());
     } else {
       if (feof(menu_file)) {
         fprintf(stderr, bt::i18n(ScreenSet, ScreenEmptyMenuFile,
                                  "%s: Empty menu file"),
-                blackbox->getMenuFilename());
+                blackbox->resource().menuFilename());
       } else {
         char line[1024], label[1024];
         memset(line, 0, 1024);
@@ -1151,7 +678,7 @@ void BScreen::InitMenu(void) {
     rootmenu->insertFunction(bt::i18n(ScreenSet, ScreenExit, "Exit"),
                              BScreen::Exit);
   } else {
-    blackbox->saveMenuFilename(blackbox->getMenuFilename());
+    blackbox->saveMenuFilename(blackbox->resource().menuFilename());
   }
 }
 
@@ -1325,7 +852,7 @@ bool BScreen::parseMenuFile(FILE *file, Rootmenu *menu) {
       }
 
       Rootmenu *submenu =
-        new Rootmenu(*blackbox, screen_info.getScreenNumber(), this);
+        new Rootmenu(*blackbox, screen_info.screenNumber(), this);
       submenu->showTitle();
 
       if (*command)
@@ -1405,7 +932,7 @@ bool BScreen::parseMenuFile(FILE *file, Rootmenu *menu) {
 
       if (newmenu) {
         stylesmenu =
-          new Rootmenu(*blackbox, screen_info.getScreenNumber(),this);
+          new Rootmenu(*blackbox, screen_info.screenNumber(),this);
         stylesmenu->showTitle();
       } else {
         stylesmenu = menu;
@@ -1425,17 +952,21 @@ bool BScreen::parseMenuFile(FILE *file, Rootmenu *menu) {
       std::vector<std::string>::iterator it = ls.begin(),
                                         end = ls.end();
       for (; it != end; ++it) {
-        const std::string& fname = *it;
+        std::string& fname = *it;
 
-        if (fname[fname.size()-1] == '~')
+        if (fname[0] == '.' || fname[fname.size()-1] == '~')
           continue;
 
         std::string style = stylesdir;
         style += '/';
         style += fname;
 
-        if (! stat(style.c_str(), &statbuf) && S_ISREG(statbuf.st_mode))
+        if (! stat(style.c_str(), &statbuf) && S_ISREG(statbuf.st_mode)) {
+          // convert 'This_Long_Name' to 'This Long Name'
+          std::replace(fname.begin(), fname.end(), '_', ' ');
+
           stylesmenu->insertFunction(fname, BScreen::SetStyle, style);
+        }
       }
 
       if (newmenu) {
@@ -1456,7 +987,6 @@ bool BScreen::parseMenuFile(FILE *file, Rootmenu *menu) {
         continue;
       }
 
-      menu->insertItem(label, stackmenu);
       break;
     }
     } // switch
@@ -1467,9 +997,9 @@ bool BScreen::parseMenuFile(FILE *file, Rootmenu *menu) {
 
 
 void BScreen::shutdown(void) {
-  XSelectInput(blackbox->getXDisplay(), screen_info.getRootWindow(),
+  XSelectInput(blackbox->XDisplay(), screen_info.rootWindow(),
                NoEventMask);
-  XSync(blackbox->getXDisplay(), False);
+  XSync(blackbox->XDisplay(), False);
 
   while(! windowList.empty())
     unmanageWindow(windowList.back(), True);
@@ -1480,11 +1010,11 @@ void BScreen::shutdown(void) {
 
 void BScreen::showPosition(int x, int y) {
   if (! geom_visible) {
-    XMoveResizeWindow(blackbox->getXDisplay(), geom_window,
-                      (screen_info.getWidth() - geom_w) / 2,
-                      (screen_info.getHeight() - geom_h) / 2, geom_w, geom_h);
-    XMapWindow(blackbox->getXDisplay(), geom_window);
-    XRaiseWindow(blackbox->getXDisplay(), geom_window);
+    XMoveResizeWindow(blackbox->XDisplay(), geom_window,
+                      (screen_info.width() - geom_w) / 2,
+                      (screen_info.height() - geom_h) / 2, geom_w, geom_h);
+    XMapWindow(blackbox->XDisplay(), geom_window);
+    XRaiseWindow(blackbox->XDisplay(), geom_window);
 
     geom_visible = True;
   }
@@ -1493,24 +1023,24 @@ void BScreen::showPosition(int x, int y) {
   sprintf(label, bt::i18n(ScreenSet, ScreenPositionFormat,
                       "X: %4d x Y: %4d"), x, y);
 
-  XClearWindow(blackbox->getXDisplay(), geom_window);
+  XClearWindow(blackbox->XDisplay(), geom_window);
 
-  bt::Pen pen(screen_info.getScreenNumber(), resource.wstyle.l_text_focus);
-  bt::Rect rect(resource.bevel_width, resource.bevel_width,
-                geom_w - (resource.bevel_width * 2),
-                geom_h - (resource.bevel_width * 2));
-  bt::drawText(resource.wstyle.font, pen, geom_window, rect,
-               resource.wstyle.alignment, label);
+  bt::Pen pen(screen_info.screenNumber(), _resource.windowStyle()->l_text_focus);
+  bt::Rect rect(_resource.bevelWidth(), _resource.bevelWidth(),
+                geom_w - (_resource.bevelWidth() * 2),
+                geom_h - (_resource.bevelWidth() * 2));
+  bt::drawText(_resource.windowStyle()->font, pen, geom_window, rect,
+               _resource.windowStyle()->alignment, label);
 }
 
 
 void BScreen::showGeometry(unsigned int gx, unsigned int gy) {
   if (! geom_visible) {
-    XMoveResizeWindow(blackbox->getXDisplay(), geom_window,
-                      (screen_info.getWidth() - geom_w) / 2,
-                      (screen_info.getHeight() - geom_h) / 2, geom_w, geom_h);
-    XMapWindow(blackbox->getXDisplay(), geom_window);
-    XRaiseWindow(blackbox->getXDisplay(), geom_window);
+    XMoveResizeWindow(blackbox->XDisplay(), geom_window,
+                      (screen_info.width() - geom_w) / 2,
+                      (screen_info.height() - geom_h) / 2, geom_w, geom_h);
+    XMapWindow(blackbox->XDisplay(), geom_window);
+    XRaiseWindow(blackbox->XDisplay(), geom_window);
 
     geom_visible = True;
   }
@@ -1520,20 +1050,21 @@ void BScreen::showGeometry(unsigned int gx, unsigned int gy) {
   sprintf(label, bt::i18n(ScreenSet, ScreenGeometryFormat,
                           "W: %4d x H: %4d"), gx, gy);
 
-  XClearWindow(blackbox->getXDisplay(), geom_window);
+  XClearWindow(blackbox->XDisplay(), geom_window);
 
-  bt::Pen pen(screen_info.getScreenNumber(), resource.wstyle.l_text_focus);
-  bt::Rect rect(resource.bevel_width, resource.bevel_width,
-                geom_w - (resource.bevel_width * 2),
-                geom_h - (resource.bevel_width * 2));
-  bt::drawText(resource.wstyle.font, pen, geom_window, rect,
-               resource.wstyle.alignment, label);
+  bt::Pen pen(screen_info.screenNumber(),
+              _resource.windowStyle()->l_text_focus);
+  bt::Rect rect(_resource.bevelWidth(), _resource.bevelWidth(),
+                geom_w - (_resource.bevelWidth() * 2),
+                geom_h - (_resource.bevelWidth() * 2));
+  bt::drawText(_resource.windowStyle()->font, pen, geom_window, rect,
+               _resource.windowStyle()->alignment, label);
 }
 
 
 void BScreen::hideGeometry(void) {
   if (geom_visible) {
-    XUnmapWindow(blackbox->getXDisplay(), geom_window);
+    XUnmapWindow(blackbox->XDisplay(), geom_window);
     geom_visible = False;
   }
 }
@@ -1541,29 +1072,24 @@ void BScreen::hideGeometry(void) {
 
 void BScreen::addStrut(bt::Netwm::Strut *strut) {
   strutList.push_back(strut);
-  area_is_dirty = True;
-  if (! timer->isTiming()) timer->start();
+  updateAvailableArea();
 }
 
 
 void BScreen::removeStrut(bt::Netwm::Strut *strut) {
   strutList.remove(strut);
-  area_is_dirty = True;
-  if (! timer->isTiming()) timer->start();
+  updateAvailableArea();
 }
 
 
 void BScreen::updateStrut(void) {
-  area_is_dirty = True;
-  if (! timer->isTiming()) timer->start();
+  updateAvailableArea();
 }
 
 
 const bt::Rect& BScreen::availableArea(void) {
-  if (doFullMax())
-    return screen_info.getRect(); // return the full screen
-  if (area_is_dirty)
-    updateAvailableArea();
+  if (_resource.doFullMax())
+    return screen_info.rect(); // return the full screen
   return usableArea;
 }
 
@@ -1593,10 +1119,8 @@ void BScreen::updateAvailableArea(void) {
   }
 
   new_area.setPos(current.left, current.top);
-  new_area.setSize(screen_info.getWidth() - (current.left + current.right),
-                   screen_info.getHeight() - (current.top + current.bottom));
-  area_is_dirty = False;
-  if (timer->isTiming()) timer->stop();
+  new_area.setSize(screen_info.width() - (current.left + current.right),
+                   screen_info.height() - (current.top + current.bottom));
 
   if (new_area != usableArea) {
     usableArea = new_area;
@@ -1612,22 +1136,40 @@ void BScreen::updateAvailableArea(void) {
 
 void BScreen::clientMessageEvent(const XClientMessageEvent * const event) {
   if (event->format != 32) return;
+
+  if (event->message_type == blackbox->netwm().numberOfDesktops()) {
+    unsigned int number = event->data.l[0];
+    const unsigned int wkspc_count = _resource.numberOfWorkspaces();
+    if (number > wkspc_count) {
+    } else if (number < wkspc_count) {
+    }
+  } else if (event->message_type == blackbox->netwm().desktopNames()) {
+    getDesktopNames();
+  } else if (event->message_type == blackbox->netwm().currentDesktop()) {
+  }
 }
 
 
 void BScreen::buttonPressEvent(const XButtonEvent * const event) {
   if (event->button == 1) {
-    if (! isRootColormapInstalled())
-      image_control->installRootColormap();
+#warning "TODO: install root colormap"
+
+    /*
+      set this screen active.  keygrabs and input focus will stay on
+      this screen until the user focuses a window on another screen or
+      makes another screen active.
+    */
+    blackbox->setActiveScreen(this);
   } else if (event->button == 2) {
-    stackmenu->popup(event->x_root, event->y_root);
   } else if (event->button == 3) {
+    blackbox->checkMenu();
     rootmenu->popup(event->x_root, event->y_root);
   }
 }
 
-void
-BScreen::configureRequestEvent(const XConfigureRequestEvent * const event) {
+
+void BScreen::configureRequestEvent(const XConfigureRequestEvent* const event)
+{
   /*
     handle configure requests for windows that have no EventHandlers
     by simply configuring them as requested.
@@ -1646,7 +1188,7 @@ BScreen::configureRequestEvent(const XConfigureRequestEvent * const event) {
   xwc.sibling = event->above;
   xwc.stack_mode = event->detail;
 
-  XConfigureWindow(blackbox->getXDisplay(), event->window,
+  XConfigureWindow(blackbox->XDisplay(), event->window,
                    event->value_mask, &xwc);
 }
 
@@ -1656,11 +1198,11 @@ void BScreen::toggleFocusModel(FocusModel model) {
                 std::mem_fun(&BlackboxWindow::ungrabButtons));
 
   if (model == SloppyFocus) {
-    saveSloppyFocus(True);
+    _resource.saveSloppyFocus(True);
   } else {
-    saveSloppyFocus(False);
-    saveAutoRaise(False);
-    saveClickRaise(False);
+    _resource.saveSloppyFocus(False);
+    _resource.saveAutoRaise(False);
+    _resource.saveClickRaise(False);
   }
 
   std::for_each(windowList.begin(), windowList.end(),
@@ -1669,30 +1211,36 @@ void BScreen::toggleFocusModel(FocusModel model) {
 
 
 void BScreen::updateWorkareaHint(void) const {
-  unsigned int wkspc_count = 1;
   unsigned long *workarea, *tmp;
 
-  tmp = workarea = new unsigned long[wkspc_count * 4];
+  tmp = workarea = new unsigned long[4];
 
-  for (unsigned int i = 0; i < wkspc_count; ++i) {
-    tmp[0] = usableArea.x();
-    tmp[1] = usableArea.y();
-    tmp[2] = usableArea.width();
-    tmp[3] = usableArea.height();
-    tmp += 4;
-  }
+  tmp[0] = usableArea.x();
+  tmp[1] = usableArea.y();
+  tmp[2] = usableArea.width();
+  tmp[3] = usableArea.height();
+  tmp += 4;
 
-  blackbox->netwm().setWorkarea(screen_info.getRootWindow(),
-                                 workarea, wkspc_count);
+  blackbox->netwm().setWorkarea(screen_info.rootWindow(),
+                                workarea, 1);
 
   delete [] workarea;
 }
 
 
+void BScreen::updateDesktopNamesHint(void) const {
+  std::string names;
+
+  names = "Workspace 1";
+  names += '\0';
+  blackbox->netwm().setDesktopNames(screen_info.rootWindow(), names);
+}
+
+
 void BScreen::updateClientListHint(void) const {
   if (windowList.empty()) {
-    blackbox->netwm().removeProperty(screen_info.getRootWindow(),
-                                      blackbox->netwm().clientList());
+    blackbox->netwm().removeProperty(screen_info.rootWindow(),
+                                     blackbox->netwm().clientList());
     return;
   }
 
@@ -1701,45 +1249,24 @@ void BScreen::updateClientListHint(void) const {
   std::transform(windowList.begin(), windowList.end(), clientList.begin(),
                  std::mem_fun(&BlackboxWindow::getClientWindow));
 
-  blackbox->netwm().setClientList(screen_info.getRootWindow(), clientList);
+  blackbox->netwm().setClientList(screen_info.rootWindow(), clientList);
 }
 
 
 void BScreen::updateClientListStackingHint(void) const {
-  if (stackingList->empty()) {
-    blackbox->netwm().removeProperty(screen_info.getRootWindow(),
+  bt::Netwm::WindowList stack;
+
+  if (stack.empty()) {
+    blackbox->netwm().removeProperty(screen_info.rootWindow(),
                                      blackbox->netwm().clientListStacking());
     return;
   }
 
-  bt::Netwm::WindowList stack;
-
-  StackingList::const_iterator it = stackingList->begin(),
-    end = stackingList->end();
-  for (; it != end; ++it)
-    if (*it) stack.push_back((*it)->getClientWindow());
-
-  blackbox->netwm().setClientListStacking(screen_info.getRootWindow(), stack);
+  blackbox->netwm().setClientListStacking(screen_info.rootWindow(), stack);
 }
 
 
-void BScreen::timeout(void) {
-  if (area_is_dirty)
-    updateAvailableArea();
-}
-
-
-BlackboxWindow* BScreen::getWindow(unsigned int id) {
-  if (id < stackingList->size()) {
-    StackingList::iterator it = stackingList->begin(),
-      end = stackingList->end();
-    for (; it != end; ++it) {
-      if (*it && (*it)->getWindowNumber() == id)
-        return *it;
-    }
-  }
-
-  return (BlackboxWindow *) 0;
+void BScreen::getDesktopNames(void) {
 }
 
 
@@ -1840,45 +1367,47 @@ static bool colRLBT(const bt::Rect &first, const bt::Rect &second) {
 }
 
 
-bool BScreen::smartPlacement(bt::Rect& win, const bt::Rect& sandbox) {
+bool BScreen::smartPlacement(bt::Rect& win) {
+  const bt::Rect& area = availableArea();
   rectList spaces;
-  spaces.push_back(sandbox); //initially the entire screen is free
+  spaces.push_back(area); //initially the entire area is free
 
-  //Find Free Spaces
-  StackingList::const_iterator wit = stackingList->begin(),
-    end = stackingList->end();
+  // Find Free Spaces
+  BlackboxWindowList::const_iterator wit = windowList.begin(),
+    end = windowList.end();
   bt::Rect tmp;
   for (; wit != end; ++wit) {
     const BlackboxWindow* const curr = *wit;
-    if (! curr || curr->isShaded()) continue;
+    if (! curr || (_resource.placementIgnoresShaded() && curr->isShaded()))
+      continue;
 
     tmp.setRect(curr->frameRect().x(), curr->frameRect().y(),
-                curr->frameRect().width() + getBorderWidth(),
-                curr->frameRect().height() + getBorderWidth());
+                curr->frameRect().width() + _resource.borderWidth(),
+                curr->frameRect().height() + _resource.borderWidth());
 
     spaces = calcSpace(tmp, spaces);
   }
 
-  if (getPlacementPolicy() == BScreen::RowSmartPlacement) {
-    if(getRowPlacementDirection() == BScreen::LeftRight) {
-      if(getColPlacementDirection() == BScreen::TopBottom)
+  if (_resource.placementPolicy() == RowSmartPlacement) {
+    if(_resource.rowPlacementDirection() == LeftRight) {
+      if(_resource.colPlacementDirection() == TopBottom)
         std::sort(spaces.begin(), spaces.end(), rowLRTB);
       else
         std::sort(spaces.begin(), spaces.end(), rowLRBT);
     } else {
-      if(getColPlacementDirection() == BScreen::TopBottom)
+      if(_resource.colPlacementDirection() == TopBottom)
         std::sort(spaces.begin(), spaces.end(), rowRLTB);
       else
         std::sort(spaces.begin(), spaces.end(), rowRLBT);
     }
   } else {
-    if(getColPlacementDirection() == BScreen::TopBottom) {
-      if(getRowPlacementDirection() == BScreen::LeftRight)
+    if(_resource.colPlacementDirection() == TopBottom) {
+      if(_resource.rowPlacementDirection() == LeftRight)
         std::sort(spaces.begin(), spaces.end(), colLRTB);
       else
         std::sort(spaces.begin(), spaces.end(), colRLTB);
     } else {
-      if(getRowPlacementDirection() == BScreen::LeftRight)
+      if(_resource.rowPlacementDirection() == LeftRight)
         std::sort(spaces.begin(), spaces.end(), colLRBT);
       else
         std::sort(spaces.begin(), spaces.end(), colRLBT);
@@ -1900,29 +1429,29 @@ bool BScreen::smartPlacement(bt::Rect& win, const bt::Rect& sandbox) {
   win.setY(where.y());
 
   // adjust the location() based on left/right and top/bottom placement
-  if (getPlacementPolicy() == BScreen::RowSmartPlacement) {
-    if (getRowPlacementDirection() == BScreen::RightLeft)
+  if (_resource.placementPolicy() == RowSmartPlacement) {
+    if (_resource.rowPlacementDirection() == RightLeft)
       win.setX(where.right() - win.width());
-    if (getColPlacementDirection() == BScreen::BottomTop)
+    if (_resource.colPlacementDirection() == BottomTop)
       win.setY(where.bottom() - win.height());
   } else {
-    if (getColPlacementDirection() == BScreen::BottomTop)
+    if (_resource.colPlacementDirection() == BottomTop)
       win.setY(win.y() + where.height() - win.height());
-    if (getRowPlacementDirection() == BScreen::RightLeft)
+    if (_resource.rowPlacementDirection() == RightLeft)
       win.setX(win.x() + where.width() - win.width());
   }
   return True;
 }
 
 
-bool BScreen::cascadePlacement(bt::Rect &win, const bt::Rect &sandbox) {
-  if (cascade_x > (sandbox.width() / 2) ||
-      cascade_y > (sandbox.height() / 2))
+bool BScreen::cascadePlacement(bt::Rect &win) {
+  const bt::Rect& area = availableArea();
+  if (cascade_x > (area.width() / 2) || cascade_y > (area.height() / 2))
     cascade_x = cascade_y = 32;
 
   if (cascade_x == 32) {
-    cascade_x += sandbox.x();
-    cascade_y += sandbox.y();
+    cascade_x += area.x();
+    cascade_y += area.y();
   }
 
   win.setPos(cascade_x, cascade_y);
@@ -1931,30 +1460,30 @@ bool BScreen::cascadePlacement(bt::Rect &win, const bt::Rect &sandbox) {
 }
 
 
-void BScreen::placeWindow(BlackboxWindow *w) {
-  bt::Rect sandbox(availableArea()),
-    new_win(sandbox.x(), sandbox.y(),
-            w->frameRect().width(), w->frameRect().height());
+void BScreen::placeWindow(BlackboxWindow *win) {
+  const bt::Rect &area = availableArea();
+  bt::Rect new_win(area.x(), area.y(),
+                   win->frameRect().width(), win->frameRect().height());
   bool placed = False;
 
-  switch (getPlacementPolicy()) {
-  case BScreen::RowSmartPlacement:
-  case BScreen::ColSmartPlacement:
-    placed = smartPlacement(new_win, sandbox);
+  switch (_resource.placementPolicy()) {
+  case RowSmartPlacement:
+  case ColSmartPlacement:
+    placed = smartPlacement(new_win);
     break;
   default:
     break; // handled below
   } // switch
 
   if (placed == False) {
-    cascadePlacement(new_win, sandbox);
-    cascade_x += w->getTitleHeight() + (getBorderWidth() * 2);
-    cascade_y += w->getTitleHeight() + (getBorderWidth() * 2);
+    cascadePlacement(new_win);
+    cascade_x += win->getTitleHeight() + (_resource.borderWidth() * 2);
+    cascade_y += win->getTitleHeight() + (_resource.borderWidth() * 2);
   }
 
-  if (new_win.right() > sandbox.right())
-    new_win.setX(sandbox.left());
-  if (new_win.bottom() > sandbox.bottom())
-    new_win.setY(sandbox.top());
-  w->configure(new_win.x(), new_win.y(), new_win.width(), new_win.height());
+  if (new_win.right() > area.right())
+    new_win.setX(area.left());
+  if (new_win.bottom() > area.bottom())
+    new_win.setY(area.top());
+  win->configure(new_win.x(), new_win.y(), new_win.width(), new_win.height());
 }

@@ -1,7 +1,8 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Window.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -34,7 +35,7 @@ extern "C" {
 
 #include <string>
 
-#include "BaseDisplay.hh"
+#include "Display.hh"
 #include "Screen.hh"
 #include "Timer.hh"
 #include "Util.hh"
@@ -93,7 +94,8 @@ public:
 };
 
 
-class BlackboxWindow : public bt::TimeoutHandler, public bt::EventHandler {
+class BlackboxWindow : public bt::TimeoutHandler, public bt::EventHandler,
+                       public bt::NoCopy {
 public:
   enum Function { Func_Resize   = (1l << 0),
                   Func_Move     = (1l << 1),
@@ -110,8 +112,8 @@ public:
                     Decor_Close    = (1l << 5) };
   typedef unsigned char DecorationFlags;
 
-  enum WMLayer { LAYER_DESKTOP, LAYER_BELOW, LAYER_NORMAL, LAYER_ABOVE,
-                 LAYER_FULLSCREEN };
+  enum WMLayer { LAYER_NORMAL, LAYER_FULLSCREEN, LAYER_ABOVE, LAYER_BELOW,
+                 LAYER_DESKTOP };
 private:
   Blackbox *blackbox;
   BScreen *screen;
@@ -129,7 +131,6 @@ private:
   struct WMState {
     bool modal,              // is modal? (must be dismissed to continue)
       shaded,                // is shaded?
-      iconic,                // is iconified?
       fullscreen,            // is a full screen window
       moving,                // is moving?
       resizing,              // is resizing?
@@ -160,10 +161,8 @@ private:
     min_width, min_height,        // can not be resized smaller
       max_width, max_height,        // can not be resized larger
       width_inc, height_inc,        // increment step
-#if 0 // not supported at the moment
       min_aspect_x, min_aspect_y,   // minimum aspect ratio
       max_aspect_x, max_aspect_y,   // maximum aspect ratio
-#endif
       base_width, base_height,
       win_gravity;
 
@@ -202,11 +201,10 @@ private:
    */
 
   struct _frame {
+    ScreenResource::WindowStyle* style;
+
     // u -> unfocused, f -> has focus
-    unsigned long ulabel_pixel, flabel_pixel, utitle_pixel,
-      ftitle_pixel, uhandle_pixel, fhandle_pixel, ubutton_pixel,
-      fbutton_pixel, pbutton_pixel, uborder_pixel, fborder_pixel,
-      ugrip_pixel, fgrip_pixel;
+    unsigned long uborder_pixel, fborder_pixel;
     Pixmap ulabel, flabel, utitle, ftitle, uhandle, fhandle,
       ubutton, fbutton, pbutton, ugrip, fgrip;
 
@@ -235,13 +233,8 @@ private:
     int grab_x, grab_y;         // where was the window when it was grabbed?
 
     unsigned int inside_w, inside_h, // window w/h without border_w
-      title_h, label_w, label_h, handle_h,
-      button_w, grip_w, mwm_border_w, border_w,
-      bevel_w;
+      label_w, mwm_border_w, border_w;
   } frame;
-
-  BlackboxWindow(const BlackboxWindow&);
-  BlackboxWindow& operator=(const BlackboxWindow&);
 
   bool getState(void);
   Window createToplevelWindow();
@@ -273,18 +266,22 @@ private:
   void createMaximizeButton(void);
   void destroyMaximizeButton(void);
   void redrawWindowFrame(void) const;
+  void redrawTitle(void) const;
   void redrawLabel(void) const;
   void redrawAllButtons(void) const;
   void redrawCloseButton(bool pressed) const;
   void redrawIconifyButton(bool pressed) const;
   void redrawMaximizeButton(bool pressed) const;
+  void redrawHandle(void) const;
+  void redrawGrips(void) const;
   void applyGravity(bt::Rect &r);
   void restoreGravity(bt::Rect &r);
   void setState(unsigned long new_state, bool closing = False);
   void upsize(void);
+  void showGeometry(const bt::Rect &r) const;
 
   enum Corner { TopLeft, TopRight };
-  void constrain(Corner anchor, unsigned int *pw = 0, unsigned int *ph = 0);
+  void constrain(Corner anchor);
 
 public:
   BlackboxWindow(Blackbox *b, Window w, BScreen *s);
@@ -293,9 +290,7 @@ public:
   inline bool isTransient(void) const { return client.transient_for != 0; }
   inline bool isFocused(void) const { return client.state.focused; }
   inline bool isVisible(void) const
-  { return (! (client.current_state == WithdrawnState ||
-               client.state.iconic)); }
-  inline bool isIconic(void) const { return client.state.iconic; }
+  { return (! (client.current_state == WithdrawnState)); }
   inline bool isShaded(void) const { return client.state.shaded; }
   inline bool isMaximized(void) const { return client.state.maximized; }
   inline bool isModal(void) const { return client.state.modal; }
@@ -333,7 +328,7 @@ public:
   inline const bt::Rect &clientRect(void) const { return client.rect; }
 
   inline unsigned int getTitleHeight(void) const
-  { return frame.title_h; }
+  { return frame.style->title_height; }
 
   inline WMLayer getLayer(void) const { return client.state.layer; }
   unsigned long normalHintFlags(void) const
@@ -348,7 +343,7 @@ public:
 
   void setFocusFlag(bool focus);
   void iconify(void);
-  void deiconify(void);
+  void deiconify(bool reassoc = True, bool raise = True);
   void show(void);
   void close(void);
   void withdraw(void);
@@ -361,7 +356,6 @@ public:
   void installColormap(bool install);
   void restore(bool remap);
   void configure(int dx, int dy, unsigned int dw, unsigned int dh);
-  void changeLayer(WMLayer new_layer);
 
   void clientMessageEvent(const XClientMessageEvent * const ce);
   void buttonPressEvent(const XButtonEvent * const be);
@@ -382,7 +376,7 @@ public:
   void shapeEvent(const XShapeEvent * const /*unused*/);
 #endif // SHAPE
 
-  virtual void timeout(void);
+  virtual void timeout(bt::Timer *);
 };
 
 

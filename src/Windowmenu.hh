@@ -1,9 +1,8 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
-//
-// Blackbox - an X11 window manager
-//
-// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+// Windowmenu.hh for Blackbox - an X11 window manager
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -29,6 +28,7 @@
 #include "Menu.hh"
 
 // forward declaration
+class SendToWorkspacemenu;
 class BlackboxWindow;
 
 
@@ -40,12 +40,13 @@ public:
   void refresh(void);
 
 protected:
-  virtual void itemClicked(unsigned int id, unsigned int button);
+  virtual void itemClicked(unsigned int id, unsigned int);
 
 private:
-  enum WindowMenuOptions { Shade, Iconify, Maximize,
-                           Raise, Lower, OnTop, OnBottom, Kill, Close };
   BlackboxWindow *_window;
+  SendToWorkspacemenu *_sendto;
+
+  friend class SendtoWorkspacemenu;
 };
 
 #endif // __Windowmenu_hh

@@ -1,6 +1,8 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // blackbox.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -23,12 +25,11 @@
 #ifndef   __blackbox_hh
 #define   __blackbox_hh
 
+extern "C" {
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
 
-#ifdef    HAVE_STDIO_H
-# include <stdio.h>
-#endif // HAVE_STDIO_H
+#include <stdio.h>
 
 #ifdef    TIME_WITH_SYS_TIME
 #  include <sys/time.h>
@@ -40,168 +41,136 @@
 #    include <time.h>
 #  endif // HAVE_SYS_TIME_H
 #endif // TIME_WITH_SYS_TIME
+}
 
+#include <list>
+#include <map>
+#include <string>
 
-#include "LinkedList.hh"
-#include "BaseDisplay.hh"
-#include "Timer.hh"
+// always include this just for the #defines
+// this keeps the calls to i18n->getMessage clean, otherwise we have to
+// add ifdefs to every call to getMessage
+#include "../nls/blackbox-nls.hh"
+
+#include "Application.hh"
+#include "Image.hh"
+#include "BlackboxResource.hh"
+#include "Util.hh"
 
 //forward declaration
-class BScreen;
-class Blackbox;
-class BImageControl;
-class BlackboxWindow;
 class Basemenu;
-class Toolbar;
-#ifdef    SLIT
+class BlackboxWindow;
+class BlackboxResource;
+class BScreen;
+class BWindowGroup;
+class ScreenResource;
 class Slit;
-#endif // SLIT
+class Toolbar;
 
-template <class Z>
-class DataSearch {
+namespace bt {
+  class Netwm;
+}
+
+
+class Blackbox : public bt::Application, public bt::TimeoutHandler {
 private:
-  Window window;
-  Z *data;
-
-public:
-  DataSearch(Window w, Z *d): window(w), data(d) {}
-
-  inline const Window &getWindow(void) const { return window; }
-  inline Z *getData(void) { return data; }
-};
-
-
-class Blackbox : public BaseDisplay, public TimeoutHandler {
-private:
-  typedef struct MenuTimestamp {
-    char *filename;
+  struct MenuTimestamp {
+    std::string filename;
     time_t timestamp;
-  } MenuTimestamp;
+  };
 
-  struct resource {
-    Time double_click_interval;
+  BlackboxResource _resource;
 
-    char *menu_file, *style_file;
-    int colors_per_channel;
-    timeval auto_raise_delay;
-    unsigned long cache_life, cache_max;
-  } resource;
+  typedef std::map<Window, BlackboxWindow*> WindowLookup;
+  typedef WindowLookup::value_type WindowLookupPair;
+  WindowLookup windowSearchList;
 
-  typedef DataSearch<BlackboxWindow> WindowSearch;
-  LinkedList<WindowSearch> *windowSearchList, *groupSearchList;
-  typedef DataSearch<Basemenu> MenuSearch;
-  LinkedList<MenuSearch> *menuSearchList;
-  typedef DataSearch<Toolbar> ToolbarSearch;
-  LinkedList<ToolbarSearch> *toolbarSearchList;
+  typedef std::map<Window, BWindowGroup*> GroupLookup;
+  typedef GroupLookup::value_type GroupLookupPair;
+  GroupLookup groupSearchList;
 
-#ifdef    SLIT
-  typedef DataSearch<Slit> SlitSearch;
-  LinkedList<SlitSearch> *slitSearchList;
-#endif // SLIT
+  typedef std::list<MenuTimestamp*> MenuTimestampList;
+  MenuTimestampList menuTimestamps;
 
-  LinkedList<MenuTimestamp> *menuTimestamps;
-  LinkedList<BScreen> *screenList;
+  BScreen** screen_list;
+  size_t screen_list_count;
+  BScreen *active_screen;
 
-  BlackboxWindow *focused_window, *masked_window;
-  BTimer *timer;
+  BlackboxWindow *focused_window;
+  bt::Timer *timer;
 
-#ifdef    HAVE_GETPID
-  Atom blackbox_pid;
-#endif // HAVE_GETPID
-
-  Bool no_focus, reconfigure_wait, reread_menu_wait;
+  bool no_focus, reconfigure_wait, reread_menu_wait;
   Time last_time;
-  Window masked;
-  char *rc_file, **argv;
-  int argc;
+  char **argv;
 
+  Atom xa_wm_colormap_windows, xa_wm_protocols, xa_wm_state,
+    xa_wm_delete_window, xa_wm_take_focus, xa_wm_change_state,
+    motif_wm_hints;
 
-protected:
+  bt::Netwm* _netwm;
+
   void load_rc(void);
   void save_rc(void);
   void reload_rc(void);
   void real_rereadMenu(void);
   void real_reconfigure(void);
 
-  virtual void process_event(XEvent *);
+  void init_icccm(void);
+
+  virtual void process_event(XEvent *e);
 
 
 public:
-  Blackbox(int, char **, char * = 0, char * = 0);
+  Blackbox(char **m_argv, const char *dpy_name, const std::string& rc,
+           bool multi_head);
   virtual ~Blackbox(void);
 
-#ifdef    HAVE_GETPID
-  inline const Atom &getBlackboxPidAtom(void) const { return blackbox_pid; }
-#endif // HAVE_GETPID
+  BlackboxResource& resource(void) { return _resource; }
 
-  Basemenu *searchMenu(Window);
+  // screen functions
+  BScreen *findScreen(Window window);
+  BScreen *activeScreen(void) const { return active_screen; }
+  void setActiveScreen(BScreen *screen);
+  unsigned int screenCount(void) const { return screen_list_count; }
+  BScreen* screenNumber(unsigned int n);
 
-  BlackboxWindow *searchGroup(Window, BlackboxWindow *);
-  BlackboxWindow *searchWindow(Window);
-  inline BlackboxWindow *getFocusedWindow(void) { return focused_window; }
+  BlackboxWindow *findWindow(Window window);
+  void insertWindow(Window window, BlackboxWindow *data);
+  void removeWindow(Window window);
 
-  BScreen *getScreen(int);
-  BScreen *searchScreen(Window);
+  BWindowGroup *findWindowGroup(Window window);
+  void insertWindowGroup(Window window, BWindowGroup *data);
+  void removeWindowGroup(Window window);
 
-  inline const Time &getDoubleClickInterval(void) const
-    { return resource.double_click_interval; }
-  inline const Time &getLastTime(void) const { return last_time; }
+  const bt::Netwm& netwm(void) { return *_netwm; }
 
-  Toolbar *searchToolbar(Window);
+  BlackboxWindow *getFocusedWindow(void) { return focused_window; }
 
-  inline const char *getStyleFilename(void) const
-    { return resource.style_file; }
-  inline const char *getMenuFilename(void) const
-    { return resource.menu_file; }
+  const Time &getLastTime(void) const { return last_time; }
 
-  inline const int &getColorsPerChannel(void) const
-    { return resource.colors_per_channel; }
-
-  inline const timeval &getAutoRaiseDelay(void) const
-    { return resource.auto_raise_delay; }
-
-  inline const unsigned long &getCacheLife(void) const
-    { return resource.cache_life; }
-  inline const unsigned long &getCacheMax(void) const
-    { return resource.cache_max; }
-
-  inline void maskWindowEvents(Window w, BlackboxWindow *bw)
-    { masked = w; masked_window = bw; }
-  inline void setNoFocus(Bool f) { no_focus = f; }
+  void setNoFocus(bool f) { no_focus = f; }
 
   void setFocusedWindow(BlackboxWindow *w);
   void shutdown(void);
-  void load_rc(BScreen *);
-  void saveStyleFilename(const char *);
-  void saveMenuFilename(const char *);
-  void saveMenuSearch(Window, Basemenu *);
-  void saveWindowSearch(Window, BlackboxWindow *);
-  void saveToolbarSearch(Window, Toolbar *);
-  void saveGroupSearch(Window, BlackboxWindow *);
-  void removeMenuSearch(Window);
-  void removeWindowSearch(Window);
-  void removeToolbarSearch(Window);
-  void removeGroupSearch(Window);
-  void restart(const char * = 0);
+  void saveMenuFilename(const std::string& filename);
+  void restart(const std::string &prog = std::string());
   void reconfigure(void);
   void rereadMenu(void);
   void checkMenu(void);
 
-  virtual Bool handleSignal(int);
+  bool validateWindow(Window window);
 
-  virtual void timeout(void);
+  virtual bool handleSignal(int sig);
 
-#ifdef    SLIT
-  Slit *searchSlit(Window);
+  virtual void timeout(bt::Timer *);
 
-  void saveSlitSearch(Window, Slit *);
-  void removeSlitSearch(Window);
-#endif // SLIT
-
-#ifndef   HAVE_STRFTIME
-
-  enum { B_AmericanDate = 1, B_EuropeanDate };
-#endif // HAVE_STRFTIME
+  Atom getWMChangeStateAtom(void) const { return xa_wm_change_state; }
+  Atom getWMStateAtom(void) const       { return xa_wm_state; }
+  Atom getWMDeleteAtom(void) const      { return xa_wm_delete_window; }
+  Atom getWMProtocolsAtom(void) const   { return xa_wm_protocols; }
+  Atom getWMTakeFocusAtom(void) const   { return xa_wm_take_focus; }
+  Atom getWMColormapAtom(void) const    { return xa_wm_colormap_windows; }
+  Atom getMotifWMHintsAtom(void) const  { return motif_wm_hints; }
 };
 
 

@@ -1,6 +1,7 @@
 # src/Makefile.am for Blackbox - an X11 Window manager
-# Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-# Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+# Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+# Copyright (c) 1997 - 2000, 2002 - 2003
+#         Bradley T Hughes <bhughes at trolltech.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -22,27 +23,28 @@
 
 DEFAULT_MENU		= $(pkgdatadir)/menu
 DEFAULT_STYLE		= $(pkgdatadir)/styles/Results
-CPPFLAGS		= @CPPFLAGS@ @SHAPE@ @ORDEREDPSEUDO@ @DEBUG@ @NLS@ \
+CPPFLAGS		= @CPPFLAGS@ @SHAPE@ @DEBUG@ @NLS@ \
 			  -DLOCALEPATH=\"$(pkgdatadir)/nls\" \
 			  -DDEFAULTMENU=\"$(DEFAULT_MENU)\" \
 			  -DDEFAULTSTYLE=\"$(DEFAULT_STYLE)\" \
 			  -I$(top_srcdir)/lib
 bin_PROGRAMS		= blackbox
-blackbox_SOURCES	= Clientmenu.cc					\
+blackbox_SOURCES	= BlackboxResource.cc                           \
+                          Clientmenu.cc					\
 			  Configmenu.cc					\
 			  Iconmenu.cc					\
 			  Rootmenu.cc					\
 			  Screen.cc					\
 			  Slit.cc					\
-			  StackingList.cc				\
-			  Stackmenu.cc					\
 			  Toolbar.cc					\
 			  Window.cc					\
 			  Windowmenu.cc					\
+			  Workspace.cc					\
+			  Workspacemenu.cc				\
 			  blackbox.cc					\
 			  main.cc
-blackbox_DEPENDENCIES	= $(top_srcdir)/lib/libbt.a
-blackbox_LDADD		= -L$(top_srcdir)/lib -lbt
+blackbox_DEPENDENCIES	= $(top_builddir)/lib/libbt.a
+blackbox_LDADD		= -L$(top_builddir)/lib -lbt
 
 MAINTAINERCLEANFILES	= Makefile.in
 

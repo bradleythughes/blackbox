@@ -1,7 +1,8 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Clientmenu.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -35,18 +36,23 @@ extern "C" {
 #include "Screen.hh"
 
 
-Clientmenu::Clientmenu(bt::Application &app, BScreen& screen)
-  : bt::Menu(app, screen.screenNumber()), _screen(screen) {
+Clientmenu::Clientmenu(bt::Application &app, BScreen& screen,
+                       unsigned int workspace)
+  : bt::Menu(app, screen.screenNumber()),
+    _workspace(workspace), _screen(screen) {
   setAutoDelete(false);
   showTitle();
 }
 
 
 void Clientmenu::itemClicked(unsigned int id, unsigned int button) {
-  if (button > 2) return;
-
-  BlackboxWindow *window = _screen.getWindow(id);
+  BlackboxWindow *window = _screen.getWindow(_workspace, id);
   assert(window != 0);
+
+  if (_workspace != _screen.getCurrentWorkspaceID()) {
+    if (button == 2) window->deiconify(true, false);
+    else  _screen.changeWorkspaceID(_workspace);
+  }
 
   _screen.raiseWindow(window);
   window->setInputFocus();

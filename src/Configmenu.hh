@@ -1,6 +1,8 @@
+// -*- mode: C++; indent-tabs-mode: nil; -*-
 // Configmenu.hh for Blackbox - An X11 Window Manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -23,56 +25,22 @@
 #ifndef   __Configmenu_hh
 #define   __Configmenu_hh
 
-#include "Basemenu.hh"
+#include "Menu.hh"
 
-// forward declaration
-class Blackbox;
 class BScreen;
-class Configmenu;
 
-class Configmenu : public Basemenu {
-private:
-  class Focusmenu : public Basemenu {
-  private:
-    Configmenu *configmenu;
 
-  protected:
-    virtual void itemSelected(int, int);
+class Configmenu : public bt::Menu {
+public:
+    Configmenu(bt::Application &app, unsigned int screen, BScreen *bscreen);
 
-  public:
-    Focusmenu(Configmenu *);
-  };
-
-  class Placementmenu : public Basemenu {
-  private:
-    Configmenu *configmenu;
-
-  protected:
-    virtual void itemSelected(int, int);
-
-  public:
-    Placementmenu(Configmenu *);
-  };
-
-  Blackbox *blackbox;
-  BScreen *screen;
-  Focusmenu *focusmenu;
-  Placementmenu *placementmenu;
-
-  friend class Focusmenu;
-  friend class Placementmenu;
+    void refresh(void);
 
 protected:
-  virtual void itemSelected(int, int);
+    void itemClicked(unsigned int id, unsigned int);
 
-public:
-  Configmenu(BScreen *);
-  virtual ~Configmenu(void);
-
-  inline Basemenu *getFocusmenu(void) { return focusmenu; }
-  inline Basemenu *getPlacementmenu(void) { return placementmenu; }
-
-  void reconfigure(void);
+private:
+    BScreen *_bscreen;
 };
 
 #endif // __Configmenu_hh

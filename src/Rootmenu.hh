@@ -1,6 +1,8 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Rootmenu.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -23,29 +25,38 @@
 #ifndef   __Rootmenu_hh
 #define   __Rootmenu_hh
 
-// forward declarations
-class Rootmenu;
+#include "Menu.hh"
 
-class Blackbox;
+#include <map>
+
+// forward declaration
 class BScreen;
 
-#include "Basemenu.hh"
 
+class Rootmenu : public bt::Menu {
+public:
+  Rootmenu(bt::Application &app, unsigned int screen, BScreen *bscreen);
 
-class Rootmenu : public Basemenu {
-private:
-  Blackbox *blackbox;
-  BScreen *screen;
-
+  void insertFunction(const std::string &label,
+                      unsigned int function,
+                      const std::string &exec = std::string(),
+                      unsigned int id = ~0u,
+                      unsigned int index = ~0u);
 
 protected:
-  virtual void itemSelected(int, int);
+  void itemClicked(unsigned int id, unsigned int);
 
+private:
+  BScreen *_bscreen;
 
-public:
-  Rootmenu(BScreen *);
+  struct _function {
+    _function(unsigned int f, const std::string &s) : func(f), string(s) { }
+    unsigned int func;
+    std::string string;
+  };
+  typedef std::map<unsigned int,const _function> FunctionMap;
+  FunctionMap _funcmap;
 };
-
 
 #endif // __Rootmenu_hh
 

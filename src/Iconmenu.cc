@@ -1,6 +1,8 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Icon.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -20,45 +22,36 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-// stupid macros needed to access some functions in version 2 of the GNU C
-// library
-#ifndef   _GNU_SOURCE
-#define   _GNU_SOURCE
-#endif // _GNU_SOURCE
-
 #ifdef    HAVE_CONFIG_H
 #  include "../config.h"
 #endif // HAVE_CONFIG_H
 
-#include "i18n.hh"
 #include "Iconmenu.hh"
+
+extern "C" {
+#include <assert.h>
+}
+
 #include "Screen.hh"
 #include "Window.hh"
+#include "i18n.hh"
 
 
-Iconmenu::Iconmenu(BScreen *scrn) : Basemenu(scrn) {
-  setInternalMenu();
-
-  screen = scrn;
-
-  setLabel(i18n->getMessage(IconSet, IconIcons, "Icons"));
-  update();
+Iconmenu::Iconmenu(bt::Application &app, unsigned int screen,
+                   BScreen *bscreen)
+  : bt::Menu(app, screen), _bscreen(bscreen) {
+  setAutoDelete(false);
+  setTitle(bt::i18n(IconSet, IconIcons, "Icons"));
+  showTitle();
 }
 
 
-void Iconmenu::itemSelected(int button, int index) {
-  if (button != 1)
-    return;
+void Iconmenu::itemClicked(unsigned int id, unsigned int) {
+  assert(id < _bscreen->getIconCount());
 
-  if (index >= 0 && index < screen->getIconCount()) {
-    BlackboxWindow *win = screen->getIcon(index);
+  BlackboxWindow *window = _bscreen->getIcon(id);
+  assert(window != 0);
 
-    if (win) {
-      win->deiconify();
-      win->setInputFocus();
-    }
-  }
-
-  if (! (screen->getWorkspacemenu()->isTorn() || isTorn()))
-    hide();
+  window->deiconify();
+  window->setInputFocus();
 }

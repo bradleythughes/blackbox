@@ -1,7 +1,8 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // blackbox.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -30,7 +31,6 @@ extern "C" {
 #include <X11/Xutil.h>
 #include <X11/Xresource.h>
 #include <X11/Xatom.h>
-#include <X11/cursorfont.h>
 #include <X11/keysym.h>
 
 #ifdef    SHAPE
@@ -96,10 +96,10 @@ extern "C" {
 
 #include "i18n.hh"
 #include "blackbox.hh"
-#include "Clientmenu.hh"
 #include "Image.hh"
 #include "Netwm.hh"
 #include "Pen.hh"
+#include "PixmapCache.hh"
 #include "Rootmenu.hh"
 #include "Screen.hh"
 #include "Slit.hh"
@@ -108,8 +108,9 @@ extern "C" {
 #include "Window.hh"
 
 
-Blackbox::Blackbox(char **m_argv, char *dpy_name, char *rc)
-  : bt::Application(m_argv[0], dpy_name) {
+Blackbox::Blackbox(char **m_argv, const char *dpy_name,
+                   const std::string& rc, bool multi_head)
+  : bt::Application(m_argv[0], dpy_name, multi_head), _resource(rc) {
   if (! XSupportsLocale())
     fprintf(stderr, "X server does not support locale\n");
 
@@ -117,27 +118,25 @@ Blackbox::Blackbox(char **m_argv, char *dpy_name, char *rc)
     fprintf(stderr, "cannot set locale modifiers\n");
 
   argv = m_argv;
-  if (! rc) rc = "~/.blackboxrc";
-  rc_file = bt::expandTilde(rc);
 
   no_focus = False;
 
-  resource.auto_raise_delay.tv_sec = resource.auto_raise_delay.tv_usec = 0;
-
+  active_screen = 0;
   focused_window = (BlackboxWindow *) 0;
   _netwm = (bt::Netwm*) 0;
 
-  XrmInitialize();
-  load_rc();
-
   init_icccm();
 
-  cursor.session = XCreateFontCursor(getXDisplay(), XC_left_ptr);
-  cursor.move = XCreateFontCursor(getXDisplay(), XC_fleur);
-  cursor.ll_angle = XCreateFontCursor(getXDisplay(), XC_ll_angle);
-  cursor.lr_angle = XCreateFontCursor(getXDisplay(), XC_lr_angle);
+  if (! multi_head || display().screenCount() == 1)
+    screen_list_count = 1;
+  else
+    screen_list_count = display().screenCount();
 
-  for (unsigned int i = 0; i < getNumberOfScreens(); i++) {
+  _resource.load(*this);
+
+  screen_list = new BScreen*[screen_list_count];
+  unsigned int managed = 0;
+  for (unsigned int i = 0; i < screen_list_count; ++i) {
     BScreen *screen = new BScreen(this, i);
 
     if (! screen->isScreenManaged()) {
@@ -145,21 +144,24 @@ Blackbox::Blackbox(char **m_argv, char *dpy_name, char *rc)
       continue;
     }
 
-    screenList.push_back(screen);
+    screen_list[i] = screen;
+    ++managed;
   }
 
-  if (screenList.empty()) {
+  if (managed == 0) {
     fprintf(stderr,
             bt::i18n(blackboxSet, blackboxNoManagableScreens,
               "Blackbox::Blackbox: no managable screens found, aborting.\n"));
     ::exit(3);
   }
 
-  // set focus to PointerRoot
-  setFocusedWindow(0);
+  screen_list_count = managed;
 
-  XSynchronize(getXDisplay(), False);
-  XSync(getXDisplay(), False);
+  // start with the first managed screen as the active screen
+  setActiveScreen(screen_list[0]);
+
+  XSynchronize(XDisplay(), False);
+  XSync(XDisplay(), False);
 
   reconfigure_wait = reread_menu_wait = False;
 
@@ -169,8 +171,10 @@ Blackbox::Blackbox(char **m_argv, char *dpy_name, char *rc)
 
 
 Blackbox::~Blackbox(void) {
-  std::for_each(screenList.begin(), screenList.end(), bt::PointerAssassin());
+  std::for_each(screen_list, screen_list + screen_list_count,
+                bt::PointerAssassin());
 
+  delete [] screen_list;
   std::for_each(menuTimestamps.begin(), menuTimestamps.end(),
                 bt::PointerAssassin());
 
@@ -191,16 +195,13 @@ void Blackbox::process_event(XEvent *e) {
 
     if (win) {
       bool focus = False;
-      if (win->isIconic()) {
-        win->deiconify();
-        focus = True;
-      }
       if (win->isShaded()) {
         win->shade();
         focus = True;
       }
 
-      if (focus && (win->isTransient() || win->getScreen()->doFocusNew()))
+      if (focus && (win->isTransient() ||
+                    win->getScreen()->resource().doFocusNew()))
         win->setInputFocus();
     } else {
       BScreen *screen = findScreen(e->xmaprequest.parent);
@@ -218,7 +219,7 @@ void Blackbox::process_event(XEvent *e) {
           the window is on
         */
         XWindowAttributes wattrib;
-        if (! XGetWindowAttributes(getXDisplay(), e->xmaprequest.window,
+        if (! XGetWindowAttributes(XDisplay(), e->xmaprequest.window,
                                    &wattrib)) {
           // failed to get the window attributes, perhaps the window has
           // now been destroyed?
@@ -298,7 +299,7 @@ void Blackbox::process_event(XEvent *e) {
         (the FocusIn event handler sets the window in the event
         structure to None to indicate this).
       */
-      if (XCheckTypedEvent(getXDisplay(), FocusIn, &event)) {
+      if (XCheckTypedEvent(XDisplay(), FocusIn, &event)) {
 
         process_event(&event);
         if (event.xfocus.window == None) {
@@ -315,7 +316,7 @@ void Blackbox::process_event(XEvent *e) {
         BlackboxWindow *focus;
         Window w;
         int revert;
-        XGetInputFocus(getXDisplay(), &w, &revert);
+        XGetInputFocus(XDisplay(), &w, &revert);
         focus = findWindow(w);
         if (focus) {
           /*
@@ -383,7 +384,7 @@ void Blackbox::init_icccm(void) {
     "_MOTIF_WM_HINTS"
   };
   Atom atoms_return[7];
-  XInternAtoms(getXDisplay(), atoms, 7, False, atoms_return);
+  XInternAtoms(XDisplay(), atoms, 7, False, atoms_return);
   xa_wm_colormap_windows = atoms_return[0];
   xa_wm_protocols = atoms_return[1];
   xa_wm_state = atoms_return[2];
@@ -392,14 +393,14 @@ void Blackbox::init_icccm(void) {
   xa_wm_take_focus = atoms_return[5];
   motif_wm_hints = atoms_return[6];
 
-  _netwm = new bt::Netwm(getXDisplay());
+  _netwm = new bt::Netwm(XDisplay());
 }
 
 
 bool Blackbox::validateWindow(Window window) {
   XEvent event;
-  if (XCheckTypedWindowEvent(getXDisplay(), window, DestroyNotify, &event)) {
-    XPutBackEvent(getXDisplay(), &event);
+  if (XCheckTypedWindowEvent(XDisplay(), window, DestroyNotify, &event)) {
+    XPutBackEvent(XDisplay(), &event);
 
     return False;
   }
@@ -407,13 +408,14 @@ bool Blackbox::validateWindow(Window window) {
   return True;
 }
 
+
 BScreen *Blackbox::findScreen(Window window) {
-  ScreenList::iterator it = screenList.begin();
-  for (; it != screenList.end(); ++it)
-    if ((*it)->getRootWindow() == window)
-      return *it;
+  for (unsigned int i = 0; i < screen_list_count; ++i)
+    if (screen_list[i]->screenInfo().rootWindow() == window)
+      return screen_list[i];
   return 0;
 }
+
 
 BlackboxWindow *Blackbox::findWindow(Window window) {
   WindowLookup::iterator it = windowSearchList.find(window);
@@ -456,7 +458,8 @@ void Blackbox::restart(const std::string &prog) {
   shutdown();
 
   if (! prog.empty()) {
-    putenv(const_cast<char *>(screenList.front()->displayString().c_str()));
+    putenv(const_cast<char *>
+           (display().screenInfo(0).displayString().c_str()));
     execlp(prog.c_str(), prog.c_str(), NULL);
     perror(prog.c_str());
   }
@@ -471,495 +474,22 @@ void Blackbox::restart(const std::string &prog) {
 void Blackbox::shutdown(void) {
   bt::Application::shutdown();
 
-  XSetInputFocus(getXDisplay(), PointerRoot, RevertToNone, CurrentTime);
+  XSetInputFocus(XDisplay(), PointerRoot, RevertToNone, CurrentTime);
 
-  std::for_each(screenList.begin(), screenList.end(),
+  std::for_each(screen_list, screen_list + screen_list_count,
                 std::mem_fun(&BScreen::shutdown));
 
-  XSync(getXDisplay(), False);
-
-  save_rc();
+  XSync(XDisplay(), False);
 }
 
 
 void Blackbox::save_rc(void) {
-  XrmDatabase new_blackboxrc = (XrmDatabase) 0;
-  char rc_string[1024];
-
-  load_rc();
-
-  sprintf(rc_string, "session.menuFile:  %s", getMenuFilename());
-  XrmPutLineResource(&new_blackboxrc, rc_string);
-
-  sprintf(rc_string, "session.colorsPerChannel:  %d",
-          resource.colors_per_channel);
-  XrmPutLineResource(&new_blackboxrc, rc_string);
-
-  sprintf(rc_string, "session.doubleClickInterval:  %lu",
-          resource.double_click_interval);
-  XrmPutLineResource(&new_blackboxrc, rc_string);
-
-  sprintf(rc_string, "session.autoRaiseDelay:  %lu",
-          ((resource.auto_raise_delay.tv_sec * 1000) +
-           (resource.auto_raise_delay.tv_usec / 1000)));
-  XrmPutLineResource(&new_blackboxrc, rc_string);
-
-  sprintf(rc_string, "session.cacheLife: %lu", resource.cache_life / 60000);
-  XrmPutLineResource(&new_blackboxrc, rc_string);
-
-  sprintf(rc_string, "session.cacheMax: %lu", resource.cache_max);
-  XrmPutLineResource(&new_blackboxrc, rc_string);
-
-  ScreenList::iterator it = screenList.begin();
-  for (; it != screenList.end(); ++it) {
-    BScreen *screen = *it;
-    int screen_number = screen->screenNumber();
-
-    char *placement = (char *) 0;
-
-    switch (screen->getSlitPlacement()) {
-    case Slit::TopLeft: placement = "TopLeft"; break;
-    case Slit::CenterLeft: placement = "CenterLeft"; break;
-    case Slit::BottomLeft: placement = "BottomLeft"; break;
-    case Slit::TopCenter: placement = "TopCenter"; break;
-    case Slit::BottomCenter: placement = "BottomCenter"; break;
-    case Slit::TopRight: placement = "TopRight"; break;
-    case Slit::BottomRight: placement = "BottomRight"; break;
-    case Slit::CenterRight: default: placement = "CenterRight"; break;
-    }
-
-    sprintf(rc_string, "session.screen%d.slit.placement: %s", screen_number,
-            placement);
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.slit.direction: %s", screen_number,
-            ((screen->getSlitDirection() == Slit::Horizontal) ? "Horizontal" :
-             "Vertical"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.slit.onTop: %s", screen_number,
-            ((screen->getSlit()->isOnTop()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.slit.autoHide: %s", screen_number,
-            ((screen->getSlit()->doAutoHide()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.opaqueMove: %s",
-            ((screen->doOpaqueMove()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.imageDither: %s",
-            bt::Image::isDitherEnabled() ? "True" : "False");
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.fullMaximization: %s", screen_number,
-            ((screen->doFullMax()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.focusNewWindows: %s", screen_number,
-            ((screen->doFocusNew()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.focusLastWindow: %s", screen_number,
-            ((screen->doFocusLast()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.disableBindingsWithScrollLock: %s",
-            screen_number, ((screen->allowScrollLock()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.rowPlacementDirection: %s",
-            screen_number,
-            ((screen->getRowPlacementDirection() == BScreen::LeftRight) ?
-             "LeftToRight" : "RightToLeft"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.colPlacementDirection: %s",
-            screen_number,
-            ((screen->getColPlacementDirection() == BScreen::TopBottom) ?
-             "TopToBottom" : "BottomToTop"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    switch (screen->getPlacementPolicy()) {
-    case BScreen::CascadePlacement:
-      placement = "CascadePlacement";
-      break;
-    case BScreen::ColSmartPlacement:
-      placement = "ColSmartPlacement";
-      break;
-
-    case BScreen::RowSmartPlacement:
-    default:
-      placement = "RowSmartPlacement";
-      break;
-    }
-    sprintf(rc_string, "session.screen%d.windowPlacement:  %s", screen_number,
-            placement);
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    std::string fmodel;
-    if (screen->isSloppyFocus()) {
-      fmodel = "SloppyFocus";
-      if (screen->doAutoRaise()) fmodel += " AutoRaise";
-      if (screen->doClickRaise()) fmodel += " ClickRaise";
-    } else {
-      fmodel = "ClickToFocus";
-    }
-    sprintf(rc_string, "session.screen%d.focusModel:  %s", screen_number,
-            fmodel.c_str());
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.toolbar.onTop:  %s", screen_number,
-            ((screen->getToolbar()->isOnTop()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.toolbar.autoHide:  %s",
-            screen_number,
-            ((screen->getToolbar()->doAutoHide()) ? "True" : "False"));
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    switch (screen->getToolbarPlacement()) {
-    case Toolbar::TopLeft: placement = "TopLeft"; break;
-    case Toolbar::BottomLeft: placement = "BottomLeft"; break;
-    case Toolbar::TopCenter: placement = "TopCenter"; break;
-    case Toolbar::TopRight: placement = "TopRight"; break;
-    case Toolbar::BottomRight: placement = "BottomRight"; break;
-    case Toolbar::BottomCenter: default: placement = "BottomCenter"; break;
-    }
-
-    sprintf(rc_string, "session.screen%d.toolbar.placement: %s",
-            screen_number, placement);
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    load_rc(screen);
-
-    // these are static, but may not be saved in the users .blackboxrc,
-    // writing these resources will allow the user to edit them at a later
-    // time... but loading the defaults before saving allows us to rewrite the
-    // users changes...
-
-    sprintf(rc_string, "session.screen%d.strftimeFormat: %s", screen_number,
-            screen->getStrftimeFormat());
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.edgeSnapThreshold: %d",
-            screen_number, screen->getEdgeSnapThreshold());
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-
-    sprintf(rc_string, "session.screen%d.toolbar.widthPercent:  %d",
-            screen_number, screen->getToolbarWidthPercent());
-    XrmPutLineResource(&new_blackboxrc, rc_string);
-  }
-
-  XrmDatabase old_blackboxrc = XrmGetFileDatabase(rc_file.c_str());
-
-  XrmMergeDatabases(new_blackboxrc, &old_blackboxrc);
-  XrmPutFileDatabase(old_blackboxrc, rc_file.c_str());
-  XrmDestroyDatabase(old_blackboxrc);
+  _resource.save(*this);
 }
 
 
 void Blackbox::load_rc(void) {
-  XrmDatabase database = (XrmDatabase) 0;
-
-  database = XrmGetFileDatabase(rc_file.c_str());
-
-  XrmValue value;
-  char *value_type;
-  int int_value;
-  unsigned long long_value;
-
-  if (XrmGetResource(database, "session.menuFile", "Session.MenuFile",
-                     &value_type, &value)) {
-    resource.menu_file = bt::expandTilde(value.addr);
-  } else {
-    resource.menu_file = DEFAULTMENU;
-  }
-
-  resource.colors_per_channel = 4;
-  if (XrmGetResource(database, "session.colorsPerChannel",
-                     "Session.ColorsPerChannel", &value_type, &value) &&
-      sscanf(value.addr, "%d", &int_value) == 1) {
-    resource.colors_per_channel = int_value;
-    if (resource.colors_per_channel < 2) resource.colors_per_channel = 2;
-    if (resource.colors_per_channel > 6) resource.colors_per_channel = 6;
-  }
-
-  if (XrmGetResource(database, "session.styleFile", "Session.StyleFile",
-                     &value_type, &value))
-    resource.style_file = bt::expandTilde(value.addr);
-  else
-    resource.style_file = DEFAULTSTYLE;
-
-  resource.double_click_interval = 250;
-  if (XrmGetResource(database, "session.doubleClickInterval",
-                     "Session.DoubleClickInterval", &value_type, &value) &&
-      sscanf(value.addr, "%lu", &long_value) == 1) {
-    resource.double_click_interval = long_value;
-  }
-
-  resource.auto_raise_delay.tv_usec = 400;
-  if (XrmGetResource(database, "session.autoRaiseDelay",
-                     "Session.AutoRaiseDelay", &value_type, &value) &&
-      sscanf(value.addr, "%lu", &long_value) == 1) {
-    resource.auto_raise_delay.tv_usec = long_value;
-  }
-
-  resource.auto_raise_delay.tv_sec = resource.auto_raise_delay.tv_usec / 1000;
-  resource.auto_raise_delay.tv_usec -=
-    (resource.auto_raise_delay.tv_sec * 1000);
-  resource.auto_raise_delay.tv_usec *= 1000;
-
-  resource.cache_life = 5l;
-  if (XrmGetResource(database, "session.cacheLife", "Session.CacheLife",
-                     &value_type, &value) &&
-      sscanf(value.addr, "%lu", &long_value) == 1) {
-    resource.cache_life = long_value;
-  }
-  resource.cache_life *= 60000;
-
-  resource.cache_max = 200;
-  if (XrmGetResource(database, "session.cacheMax", "Session.CacheMax",
-                     &value_type, &value) &&
-      sscanf(value.addr, "%lu", &long_value) == 1) {
-    resource.cache_max = long_value;
-  }
-}
-
-
-void Blackbox::load_rc(BScreen *screen) {
-  XrmDatabase database = (XrmDatabase) 0;
-
-  database = XrmGetFileDatabase(rc_file.c_str());
-
-  XrmValue value;
-  char *value_type, name_lookup[1024], class_lookup[1024];
-  int screen_number = screen->screenNumber();
-  int int_value;
-
-  sprintf(name_lookup,  "session.screen%d.fullMaximization", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.FullMaximization", screen_number);
-  screen->saveFullMax(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "true", value.size)) {
-    screen->saveFullMax(True);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.focusNewWindows", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.FocusNewWindows", screen_number);
-  screen->saveFocusNew(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "true", value.size)) {
-    screen->saveFocusNew(True);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.focusLastWindow", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.focusLastWindow", screen_number);
-  screen->saveFocusLast(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "true", value.size)) {
-    screen->saveFocusLast(True);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.disableBindingsWithScrollLock",
-          screen_number);
-  sprintf(class_lookup, "Session.Screen%d.disableBindingsWithScrollLock",
-          screen_number);
-  screen->saveAllowScrollLock(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "true", value.size)) {
-    screen->saveAllowScrollLock(True);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.rowPlacementDirection",
-          screen_number);
-  sprintf(class_lookup, "Session.Screen%d.RowPlacementDirection",
-          screen_number);
-  screen->saveRowPlacementDirection(BScreen::LeftRight);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "righttoleft", value.size)) {
-    screen->saveRowPlacementDirection(BScreen::RightLeft);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.colPlacementDirection",
-          screen_number);
-  sprintf(class_lookup, "Session.Screen%d.ColPlacementDirection",
-          screen_number);
-  screen->saveColPlacementDirection(BScreen::TopBottom);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "bottomtotop", value.size)) {
-    screen->saveColPlacementDirection(BScreen::BottomTop);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.toolbar.widthPercent",
-          screen_number);
-  sprintf(class_lookup, "Session.Screen%d.Toolbar.WidthPercent",
-          screen_number);
-  screen->saveToolbarWidthPercent(66);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      sscanf(value.addr, "%d", &int_value) == 1 &&
-      int_value > 0 && int_value <= 100) {
-    screen->saveToolbarWidthPercent(int_value);
-  }
-
-  sprintf(name_lookup, "session.screen%d.toolbar.placement", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.Toolbar.Placement", screen_number);
-  screen->saveToolbarPlacement(Toolbar::BottomCenter);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value)) {
-    if (! strncasecmp(value.addr, "TopLeft", value.size))
-      screen->saveToolbarPlacement(Toolbar::TopLeft);
-    else if (! strncasecmp(value.addr, "BottomLeft", value.size))
-      screen->saveToolbarPlacement(Toolbar::BottomLeft);
-    else if (! strncasecmp(value.addr, "TopCenter", value.size))
-      screen->saveToolbarPlacement(Toolbar::TopCenter);
-    else if (! strncasecmp(value.addr, "TopRight", value.size))
-      screen->saveToolbarPlacement(Toolbar::TopRight);
-    else if (! strncasecmp(value.addr, "BottomRight", value.size))
-      screen->saveToolbarPlacement(Toolbar::BottomRight);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.toolbar.onTop", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.Toolbar.OnTop", screen_number);
-  screen->saveToolbarOnTop(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "true", value.size)) {
-    screen->saveToolbarOnTop(True);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.toolbar.autoHide", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.Toolbar.autoHide", screen_number);
-  screen->saveToolbarAutoHide(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "true", value.size)) {
-    screen->saveToolbarAutoHide(True);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.focusModel", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.FocusModel", screen_number);
-  screen->saveSloppyFocus(True);
-  screen->saveAutoRaise(False);
-  screen->saveClickRaise(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value)) {
-    std::string fmodel = value.addr;
-
-    if (fmodel.find("ClickToFocus") != std::string::npos) {
-      screen->saveSloppyFocus(False);
-    } else {
-      // must be sloppy
-
-      if (fmodel.find("AutoRaise") != std::string::npos)
-        screen->saveAutoRaise(True);
-      if (fmodel.find("ClickRaise") != std::string::npos)
-        screen->saveClickRaise(True);
-    }
-  }
-
-  sprintf(name_lookup,  "session.screen%d.windowPlacement", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.WindowPlacement", screen_number);
-  screen->savePlacementPolicy(BScreen::RowSmartPlacement);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value)) {
-    if (! strncasecmp(value.addr, "RowSmartPlacement", value.size))
-      /* pass */;
-    else if (! strncasecmp(value.addr, "ColSmartPlacement", value.size))
-      screen->savePlacementPolicy(BScreen::ColSmartPlacement);
-    else if (! strncasecmp(value.addr, "CascadePlacement", value.size))
-      screen->savePlacementPolicy(BScreen::CascadePlacement);
-  }
-
-  sprintf(name_lookup, "session.screen%d.slit.placement", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.Slit.Placement", screen_number);
-  screen->saveSlitPlacement(Slit::CenterRight);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value)) {
-    if (! strncasecmp(value.addr, "TopLeft", value.size))
-      screen->saveSlitPlacement(Slit::TopLeft);
-    else if (! strncasecmp(value.addr, "CenterLeft", value.size))
-      screen->saveSlitPlacement(Slit::CenterLeft);
-    else if (! strncasecmp(value.addr, "BottomLeft", value.size))
-      screen->saveSlitPlacement(Slit::BottomLeft);
-    else if (! strncasecmp(value.addr, "TopCenter", value.size))
-      screen->saveSlitPlacement(Slit::TopCenter);
-    else if (! strncasecmp(value.addr, "BottomCenter", value.size))
-      screen->saveSlitPlacement(Slit::BottomCenter);
-    else if (! strncasecmp(value.addr, "TopRight", value.size))
-      screen->saveSlitPlacement(Slit::TopRight);
-    else if (! strncasecmp(value.addr, "BottomRight", value.size))
-      screen->saveSlitPlacement(Slit::BottomRight);
-  }
-
-  sprintf(name_lookup, "session.screen%d.slit.direction", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.Slit.Direction", screen_number);
-  screen->saveSlitDirection(Slit::Vertical);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "Horizontal", value.size)) {
-    screen->saveSlitDirection(Slit::Horizontal);
-  }
-
-  sprintf(name_lookup, "session.screen%d.slit.onTop", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.Slit.OnTop", screen_number);
-  screen->saveSlitOnTop(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "True", value.size)) {
-    screen->saveSlitOnTop(True);
-  }
-
-  sprintf(name_lookup, "session.screen%d.slit.autoHide", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.Slit.AutoHide", screen_number);
-  screen->saveSlitAutoHide(False);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      ! strncasecmp(value.addr, "true", value.size)) {
-    screen->saveSlitAutoHide(True);
-  }
-
-  sprintf(name_lookup,  "session.screen%d.strftimeFormat", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.StrftimeFormat", screen_number);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value)) {
-    screen->saveStrftimeFormat(value.addr);
-  } else {
-    screen->saveStrftimeFormat("%I:%M %p");
-  }
-
-  sprintf(name_lookup,  "session.screen%d.edgeSnapThreshold", screen_number);
-  sprintf(class_lookup, "Session.Screen%d.EdgeSnapThreshold", screen_number);
-  screen->saveEdgeSnapThreshold(0);
-  if (XrmGetResource(database, name_lookup, class_lookup, &value_type,
-                     &value) &&
-      sscanf(value.addr, "%d", &int_value) == 1) {
-    screen->saveEdgeSnapThreshold(int_value);
-  }
-
-  screen->saveImageDither(True);
-  if (XrmGetResource(database, "session.imageDither", "Session.ImageDither",
-                     &value_type, &value) &&
-      ! strncasecmp("false", value.addr, value.size)) {
-    screen->saveImageDither(False);
-  }
-
-  screen->saveOpaqueMove(False);
-  if (XrmGetResource(database, "session.opaqueMove", "Session.OpaqueMove",
-                     &value_type, &value) &&
-      ! strncasecmp("true", value.addr, value.size)) {
-    screen->saveOpaqueMove(True);
-  }
-
-  XrmDestroyDatabase(database);
+  _resource.load(*this);
 }
 
 
@@ -979,13 +509,14 @@ void Blackbox::reconfigure(void) {
 void Blackbox::real_reconfigure(void) {
   XrmDatabase new_blackboxrc = (XrmDatabase) 0;
 
-  std::string style = "session.styleFile: " + resource.style_file;
+  std::string style = "session.styleFile: ";
+  style += _resource.styleFilename();
   XrmPutLineResource(&new_blackboxrc, style.c_str());
 
-  XrmDatabase old_blackboxrc = XrmGetFileDatabase(rc_file.c_str());
+  XrmDatabase old_blackboxrc = XrmGetFileDatabase(_resource.rcFilename());
 
   XrmMergeDatabases(new_blackboxrc, &old_blackboxrc);
-  XrmPutFileDatabase(old_blackboxrc, rc_file.c_str());
+  XrmPutFileDatabase(old_blackboxrc, _resource.rcFilename());
   if (old_blackboxrc) XrmDestroyDatabase(old_blackboxrc);
 
   std::for_each(menuTimestamps.begin(), menuTimestamps.end(),
@@ -996,8 +527,10 @@ void Blackbox::real_reconfigure(void) {
   bt::Font::clearCache();
   bt::Pen::clearCache();
 
-  std::for_each(screenList.begin(), screenList.end(),
+  std::for_each(screen_list, screen_list + screen_list_count,
                 std::mem_fun(&BScreen::reconfigure));
+
+  bt::PixmapCache::clearCache();
 }
 
 
@@ -1032,14 +565,8 @@ void Blackbox::real_rereadMenu(void) {
                 bt::PointerAssassin());
   menuTimestamps.clear();
 
-  std::for_each(screenList.begin(), screenList.end(),
+  std::for_each(screen_list, screen_list + screen_list_count,
                 std::mem_fun(&BScreen::rereadMenu));
-}
-
-
-void Blackbox::saveStyleFilename(const std::string& filename) {
-  assert(! filename.empty());
-  resource.style_file = filename;
 }
 
 
@@ -1066,7 +593,7 @@ void Blackbox::saveMenuFilename(const std::string& filename) {
 }
 
 
-void Blackbox::timeout(void) {
+void Blackbox::timeout(bt::Timer *) {
   if (reconfigure_wait)
     real_reconfigure();
 
@@ -1077,11 +604,21 @@ void Blackbox::timeout(void) {
 }
 
 
+void Blackbox::setActiveScreen(BScreen *screen) {
+  if (active_screen && active_screen == screen) // nothing to do
+    return;
+
+  active_screen = screen;
+
+  if (! focused_window || focused_window->getScreen() != active_screen)
+    setFocusedWindow(0);
+}
+
+
 void Blackbox::setFocusedWindow(BlackboxWindow *win) {
   if (focused_window && focused_window == win) // nothing to do
     return;
 
-  BScreen *active_screen = 0;
   BScreen *old_screen = 0;
 
   if (focused_window) {
@@ -1089,30 +626,34 @@ void Blackbox::setFocusedWindow(BlackboxWindow *win) {
     old_screen = focused_window->getScreen();
   }
 
-  if (win && ! win->isIconic()) {
-    // the active screen is the one with the last focused window...
-    // this will keep focus on this screen no matter where the mouse goes,
-    // so multihead keybindings will continue to work on that screen until the
-    // user focuses a window on a different screen.
+  if (win) {
+    // the active screen is the one with the newly focused window...
     active_screen = win->getScreen();
     focused_window = win;
   } else {
+    // no active screen since no window is focused...
+    active_screen = 0;
     focused_window = 0;
     // set input focus to PointerRoot
-    XSetInputFocus(getXDisplay(), PointerRoot, RevertToNone, CurrentTime);
+    XSetInputFocus(XDisplay(), PointerRoot, RevertToNone, CurrentTime);
   }
 
-  if (active_screen && active_screen->isScreenManaged()) {
-    active_screen->getToolbar()->redrawWindowLabel(True);
-    Window active = (focused_window) ? focused_window->getClientWindow() :
-                                       None;
-    _netwm->setActiveWindow(active_screen->getRootWindow(), active);
+  Window active =
+    (focused_window) ? focused_window->getClientWindow() : None;
+
+  if (active_screen) {
+    active_screen->getToolbar()->redrawWindowLabel();
+    _netwm->setActiveWindow(active_screen->screenInfo().rootWindow(), active);
   }
 
   if (old_screen && old_screen != active_screen) {
-    old_screen->getToolbar()->redrawWindowLabel(True);
-    Window active = (focused_window) ? focused_window->getClientWindow() :
-                                       None;
-    _netwm->setActiveWindow(old_screen->getRootWindow(), active);
+    old_screen->getToolbar()->redrawWindowLabel();
+    _netwm->setActiveWindow(old_screen->screenInfo().rootWindow(), active);
   }
+}
+
+
+BScreen* Blackbox::screenNumber(unsigned int n) {
+  assert(n < screen_list_count);
+  return screen_list[n];
 }

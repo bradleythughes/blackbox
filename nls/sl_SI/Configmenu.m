@@ -36,3 +36,9 @@ $ #TopBottom
 # Od zgoraj navzdol
 $ #BottomTop
 # Od spodaj navzgor
+$ #NoDithering
+# Do not dither images
+$ #OrderedDithering
+# Use fast dither
+$ #FloydSteinbergDithering
+# Use high-quality dither

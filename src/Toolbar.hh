@@ -1,9 +1,8 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
-//
-// Blackbox - an X11 Window manager
-//
-// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
-// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+// Toolbar.hh for Blackbox - an X11 Window manager
+// Copyright (c) 2001 - 2003 Sean 'Shaleh' Perry <shaleh@debian.org>
+// Copyright (c) 1997 - 2000, 2002 - 2003
+//         Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -32,6 +31,7 @@ extern "C" {
 
 #include "Screen.hh"
 #include "Timer.hh"
+#include "Util.hh"
 
 // forward declaration
 class Toolbarmenu;
@@ -40,7 +40,7 @@ class Toolbarmenu;
 class Toolbar : public bt::TimeoutHandler, public bt::EventHandler,
                 public bt::NoCopy {
 private:
-  bool on_top, editing, hidden, do_auto_hide;
+  bool editing, hidden;
   Display *display;
 
   struct ToolbarFrame {
@@ -49,22 +49,15 @@ private:
     Window window, workspace_label, window_label, clock, psbutton, nsbutton,
       pwbutton, nwbutton;
 
-    int x_hidden, y_hidden, hour, minute;
+    int x_hidden, y_hidden;
     unsigned int window_label_w, workspace_label_w, clock_w,
       button_w, bevel_w, label_h;
 
     bt::Rect rect;
   } frame;
 
-  class HideHandler : public bt::TimeoutHandler {
-  public:
-    Toolbar *toolbar;
-
-    virtual void timeout(void);
-  } hide_handler;
-
   Blackbox *blackbox;
-  BScreen *screen;
+  BScreen *_screen;
   bt::Timer *clock_timer, *hide_timer;
   Toolbarmenu *toolbarmenu;
   bt::Netwm::Strut strut;
@@ -72,25 +65,24 @@ private:
   std::string new_workspace_name;
   size_t new_name_pos;
 
-  friend class HideHandler;
-
-  void redrawPrevWorkspaceButton(bool pressed = False, bool redraw = False);
-  void redrawNextWorkspaceButton(bool pressed = False, bool redraw = False);
-  void redrawPrevWindowButton(bool preseed = False, bool redraw = False);
-  void redrawNextWindowButton(bool preseed = False, bool redraw = False);
+  void redrawPrevWorkspaceButton(bool pressed = False);
+  void redrawNextWorkspaceButton(bool pressed = False);
+  void redrawPrevWindowButton(bool preseed = False);
+  void redrawNextWindowButton(bool preseed = False);
+  void redrawClockLabel(void);
 
   void updateStrut(void);
 
-  void checkClock(bool redraw = False);
 
 public:
-  explicit Toolbar(BScreen *scrn);
-  ~Toolbar(void);
+  Toolbar(BScreen *scrn);
+  virtual ~Toolbar(void);
 
   bool isEditing(void) const { return editing; }
-  bool isOnTop(void) const { return on_top; }
+  bool isOnTop(void) const { return _screen->resource().isToolbarOnTop(); }
   bool isHidden(void) const { return hidden; }
-  bool doAutoHide(void) const { return do_auto_hide; }
+  bool doAutoHide(void) const
+  { return _screen->resource().doToolbarAutoHide(); }
 
   Window getWindowID(void) const { return frame.window; }
 
@@ -98,28 +90,24 @@ public:
   unsigned int getWidth(void) const { return frame.rect.width(); }
   unsigned int getHeight(void) const { return frame.rect.height(); }
   unsigned int getExposedHeight(void) const
-  { return ((do_auto_hide) ? frame.bevel_w : frame.rect.height()); }
-  int getX(void) const
-  { return ((hidden) ? frame.x_hidden : frame.rect.x()); }
-  int getY(void) const
-  { return ((hidden) ? frame.y_hidden : frame.rect.y()); }
+  { return ((doAutoHide()) ? frame.bevel_w : frame.rect.height()); }
 
-  virtual void buttonPressEvent(const XButtonEvent* const be);
-  virtual void buttonReleaseEvent(const XButtonEvent* const re);
-  virtual void enterNotifyEvent(const XCrossingEvent* const /*unused*/);
-  virtual void leaveNotifyEvent(const XCrossingEvent* const /*unused*/);
-  virtual void exposeEvent(const XExposeEvent* const ee);
-  virtual void keyPressEvent(const XKeyEvent* const /**ke*/);
+  void buttonPressEvent(const XButtonEvent *be);
+  void buttonReleaseEvent(const XButtonEvent *re);
+  void enterNotifyEvent(const XCrossingEvent * /*unused*/);
+  void leaveNotifyEvent(const XCrossingEvent * /*unused*/);
+  void exposeEvent(const XExposeEvent *ee);
+  void keyPressEvent(const XKeyEvent *ke);
 
   void edit(void);
   void reconfigure(void);
   void toggleAutoHide(void);
   void toggleOnTop(void);
 
-  void redrawWindowLabel(bool redraw = False);
-  void redrawWorkspaceLabel(bool redraw = False);
+  void redrawWindowLabel(void);
+  void redrawWorkspaceLabel(void);
 
-  virtual void timeout(void);
+  virtual void timeout(bt::Timer *timer);
 
   enum Placement { TopLeft = 1, BottomLeft, TopCenter,
                    BottomCenter, TopRight, BottomRight };

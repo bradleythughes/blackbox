@@ -36,3 +36,9 @@ $ #TopBottom
 # Üstten aþaða
 $ #BottomTop
 # Alttan üste
+$ #NoDithering
+# Do not dither images
+$ #OrderedDithering
+# Use fast dither
+$ #FloydSteinbergDithering
+# Use high-quality dither

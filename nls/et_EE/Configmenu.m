@@ -36,3 +36,9 @@ $ #TopBottom
 # Ülevalt alla
 $ #BottomTop
 # Alt ülesse
+$ #NoDithering
+# Do not dither images
+$ #OrderedDithering
+# Use fast dither
+$ #FloydSteinbergDithering
+# Use high-quality dither

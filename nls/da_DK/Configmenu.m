@@ -16,12 +16,16 @@ $ #FocusNew
 # Fokus nyt vindue
 $ #FocusLast
 # Fokus vindue ved skrivebords ændring
+$ #DisableBindings
+# Deaktiver tastebindinger med Scroll Lock
 $ #ClickToFocus
 # Klik for fokus
 $ #SloppyFocus
 # Dovent fokus
 $ #AutoRaise
 # Hæv automatisk
+$ #ClickRaise
+# Klik for at hæve
 $ #SmartRows
 # Intelligent placering (Rækker)
 $ #SmartCols
@@ -36,3 +40,9 @@ $ #TopBottom
 # Oppefra
 $ #BottomTop
 # Nedefra
+$ #NoDithering
+# Do not dither images
+$ #OrderedDithering
+# Use fast dither
+$ #FloydSteinbergDithering
+# Use high-quality dither

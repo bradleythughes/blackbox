@@ -16,12 +16,16 @@ $ #FocusNew
 # Fokus på nya fönster
 $ #FocusLast
 # Fokusera fönster vid skrivbordsbyte
+$ #DisableBindings
+# Gör så att bindningar inte fungerar med Scroll Lock
 $ #ClickToFocus
 # Klicka för fokus
 $ #SloppyFocus
 # Hafsig fokus
 $ #AutoRaise
 # Höj automatiskt
+$ #ClickRaise
+# Klicka för att höja
 $ #SmartRows
 # Smart placering (Rader)
 $ #SmartCols
@@ -36,3 +40,9 @@ $ #TopBottom
 # Uppifrån
 $ #BottomTop
 # Nerifrån
+$ #NoDithering
+# Do not dither images
+$ #OrderedDithering
+# Use fast dither
+$ #FloydSteinbergDithering
+# Use high-quality dither

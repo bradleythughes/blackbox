@@ -1,38 +1,48 @@
 $set 3 #Configmenu
 
 $ #ConfigOptions
-# Opciones de configuración
+# Opciones de Configuración
 $ #FocusModel
-# Modelo de enfoque
+# Modelo del Foco
 $ #WindowPlacement
-# Ubicación de ventanas
+# Ubicación de las Ventanas
 $ #ImageDithering
-# Simulación de colores en imágenes
+# Simulación Ordenada de Colores en Imágenes
 $ #OpaqueMove
-# Movimiento opaco de ventanas
+# Movimiento Opaco de Ventanas
 $ #FullMax
-# Maximización total
+# Maximización Total
 $ #FocusNew
-# Enfocar ventanas nuevas
+# Enfocar Nuevas Ventanas
 $ #FocusLast
-# Enfocar la última ventana en el escritorio
+# Enfocar la Ultima Ventana en el Escritorio
+$ #DisableBindings
+# Deshabilitar Enlaces con Bloq Despl
 $ #ClickToFocus
-# Seleccionar para enfocar
+# Click Para Enfocar
 $ #SloppyFocus
-# Enfocar sin forma estricta
+# Foco Sigue Al Ratón
 $ #AutoRaise
-# Elevar automáticamente las ventanas
+# Elevar Automáticamente
+$ #ClickRaise
+# Click Para Elevar
 $ #SmartRows
-# Ubicación inteligente (filas)
+# Ubicación Inteligente (Filas)
 $ #SmartCols
-# Ubicación inteligente (columnas)
+# Ubicación Inteligente (Columnas)
 $ #Cascade
-# Ubicación en cascada
+# Ubicación en Cascada
 $ #LeftRight
-# De izquierda a derecha
+# Izquierda A Derecha
 $ #RightLeft
-# De derecha a izquierda
+# Derecha A Izquierda
 $ #TopBottom
-# De arriba hacia abajo
+# De Arriba Abajo
 $ #BottomTop
-# De abajo hacia arriba
+# De Abajo Arriba
+$ #NoDithering
+# Do not dither images
+$ #OrderedDithering
+# Use fast dither
+$ #FloydSteinbergDithering
+# Use high-quality dither
