@@ -380,6 +380,8 @@ BScreen::~BScreen(void) {
   blackbox->netwm().removeProperty(screen_info.getRootWindow(),
                                    blackbox->netwm().desktopGeometry());
   blackbox->netwm().removeProperty(screen_info.getRootWindow(),
+                                   blackbox->netwm().desktopNames());
+  blackbox->netwm().removeProperty(screen_info.getRootWindow(),
                                    blackbox->netwm().activeWindow());
   blackbox->netwm().removeProperty(screen_info.getRootWindow(),
                                    blackbox->netwm().workarea());

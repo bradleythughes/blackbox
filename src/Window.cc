@@ -446,40 +446,40 @@ void BlackboxWindow::associateClientWindow(void) {
 void BlackboxWindow::decorate(void) {
   bt::Texture* texture;
 
-  texture = &(screen->getWindowStyle()->b_focus);
-  frame.fbutton = texture->render(blackbox->getDisplay(),
-                                  screen->getScreenInfo().getScreenNumber(),
-                                  *screen->getImageControl(),
-                                  frame.button_w, frame.button_w,
-                                  frame.fbutton);
-  if (! frame.fbutton)
-    frame.fbutton_pixel = texture->color().pixel(blackbox->getDisplay(),
-                                                 screen->getScreenInfo().
-                                                 getScreenNumber());
-
-  texture = &(screen->getWindowStyle()->b_unfocus);
-  frame.ubutton = texture->render(blackbox->getDisplay(),
-                                  screen->getScreenInfo().getScreenNumber(),
-                                  *screen->getImageControl(),
-                                  frame.button_w, frame.button_w,
-                                  frame.ubutton);
-  if (! frame.ubutton)
-    frame.ubutton_pixel = texture->color().pixel(blackbox->getDisplay(),
-                                                 screen->getScreenInfo().
-                                                 getScreenNumber());
-
-  texture = &(screen->getWindowStyle()->b_pressed);
-  frame.pbutton = texture->render(blackbox->getDisplay(),
-                                  screen->getScreenInfo().getScreenNumber(),
-                                  *screen->getImageControl(),
-                                  frame.button_w, frame.button_w,
-                                  frame.pbutton);
-  if (! frame.pbutton)
-    frame.pbutton_pixel = texture->color().pixel(blackbox->getDisplay(),
-                                                 screen->getScreenInfo().
-                                                 getScreenNumber());
-
   if (client.decorations & Decor_Titlebar) {
+    texture = &(screen->getWindowStyle()->b_focus);
+    frame.fbutton = texture->render(blackbox->getDisplay(),
+                                    screen->getScreenInfo().getScreenNumber(),
+                                    *screen->getImageControl(),
+                                    frame.button_w, frame.button_w,
+                                    frame.fbutton);
+    if (! frame.fbutton)
+      frame.fbutton_pixel = texture->color().pixel(blackbox->getDisplay(),
+                                                   screen->getScreenInfo().
+                                                   getScreenNumber());
+
+    texture = &(screen->getWindowStyle()->b_unfocus);
+    frame.ubutton = texture->render(blackbox->getDisplay(),
+                                    screen->getScreenInfo().getScreenNumber(),
+                                    *screen->getImageControl(),
+                                    frame.button_w, frame.button_w,
+                                    frame.ubutton);
+    if (! frame.ubutton)
+      frame.ubutton_pixel = texture->color().pixel(blackbox->getDisplay(),
+                                                   screen->getScreenInfo().
+                                                   getScreenNumber());
+
+    texture = &(screen->getWindowStyle()->b_pressed);
+    frame.pbutton = texture->render(blackbox->getDisplay(),
+                                    screen->getScreenInfo().getScreenNumber(),
+                                    *screen->getImageControl(),
+                                    frame.button_w, frame.button_w,
+                                    frame.pbutton);
+    if (! frame.pbutton)
+      frame.pbutton_pixel = texture->color().pixel(blackbox->getDisplay(),
+                                                   screen->getScreenInfo().
+                                                   getScreenNumber());
+
     texture = &(screen->getWindowStyle()->t_focus);
     frame.ftitle = texture->render(blackbox->getDisplay(),
                                    screen->getScreenInfo().getScreenNumber(),
