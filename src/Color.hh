@@ -33,9 +33,9 @@ using std::string;
 
 class BColor {
 public:
-  BColor( int scr = -1 );
-  BColor( int rr, int gg, int bb, int scr = -1 );
-  BColor( const string &name, int scr = -1 );
+  BColor(int scr = -1);
+  BColor(int rr, int gg, int bb, int scr);
+  BColor(const string &name, int scr);
   ~BColor();
 
   const string &name() const { return colorname; }
@@ -43,7 +43,7 @@ public:
   int   red(void) const { return r; }
   int green(void) const { return g; }
   int  blue(void) const { return b; }
-  void setRGB( int rr, int gg, int bb )
+  void setRGB(int rr, int gg, int bb)
   {
     deallocate();
     r = rr;
@@ -52,7 +52,7 @@ public:
   }
 
   int screen() const { return scrn; }
-  void setScreen( int scr );
+  void setScreen(int scr);
 
   bool isAllocated(void) const { return allocated; }
 
@@ -66,14 +66,14 @@ public:
   const GC &gc() const;
 
   // operators
-  BColor &operator=( const BColor &c );
-  bool operator==( const BColor &c ) const
+  BColor &operator=(const BColor &c);
+  bool operator==(const BColor &c) const
   {
-    return ( r == c.r && b == c.b && b == c.b );
+    return (r == c.r && b == c.b && b == c.b);
   }
-  bool operator!=( const BColor &c ) const
+  bool operator!=(const BColor &c) const
   {
-    return ( ! operator==( c ) );
+    return (! operator==(c));
   }
 
   static void cleanupColorCache();
@@ -92,26 +92,26 @@ private:
   // global color allocator/deallocator
   struct rgb {
     int r, g, b, screen;
-    rgb() : r( -1 ), g( -1 ), b( -1 ), screen( -1 ) { }
-    rgb( int x, int y, int z, int q ) : r( x ), g( y ), b( z ), screen( q ) { }
-    rgb( const rgb &x ) : r( x.r ), g( x.g ), b( x.b ), screen( x.screen ) { }
-    bool operator==( const rgb &x ) const
+    rgb() : r(-1), g(-1), b(-1), screen(-1) { }
+    rgb(int x, int y, int z, int q) : r(x), g(y), b(z), screen(q) { }
+    rgb(const rgb &x) : r(x.r), g(x.g), b(x.b), screen(x.screen) { }
+    bool operator==(const rgb &x) const
     {
       return r == x.r && g == x.g && b == x.b && screen == x.screen;
     }
-    bool operator<( const rgb &x ) const
+    bool operator<(const rgb &x) const
     {
       unsigned long p1, p2;
-      p1 = ( r << 16 | g << 8 | b ) & 0x00ffffff;
-      p2 = ( x.r << 16 | x.g << 8 | x.b) & 0x00ffffff;
+      p1 = (r << 16 | g << 8 | b) & 0x00ffffff;
+      p2 = (x.r << 16 | x.g << 8 | x.b) & 0x00ffffff;
       return p1 < p2;
     }
   };
   struct pixelref {
     unsigned long p;
     int count;
-    pixelref() : p( 0 ), count( 0 ) { }
-    pixelref( unsigned long x ) : p( x ), count( 1 ) { }
+    pixelref() : p(0), count(0) { }
+    pixelref(unsigned long x) : p(x), count(1) { }
   };
   typedef std::map<rgb,pixelref> ColorCache;
   static ColorCache colorcache;
