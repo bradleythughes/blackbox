@@ -1351,6 +1351,69 @@ void Basemenu::exposeEvent(XEvent *e)
   BaseDisplay *display = BaseDisplay::instance();
   BGCCache *cache = BGCCache::instance();
 
+  BGCCache::Item &tgc = cache->find(style->menuTitle().color()),
+                 &igc = cache->find(style->menu().color());
+
+  if (show_title && todo.intersects(title_rect)) {
+    Rect up = title_rect & todo;
+    if (style->menuTitle().texture() == (BImage_Solid | BImage_Flat))
+      XFillRectangle(*display, windowID(), tgc.gc(),
+                     up.x(), up.y(), up.width(), up.height());
+    else if (title_pixmap)
+      XCopyArea(*display, title_pixmap, windowID(), tgc.gc(),
+                up.x() - title_rect.x(), up.y() - title_rect.y(),
+                up.width(), up.height(), up.x(), up.y());
+    drawTitle();
+  }
+  if (todo.intersects(frame_rect)) {
+    Rect up = frame_rect & todo;
+    if (style->menu().texture() == (BImage_Solid | BImage_Flat))
+      XFillRectangle(*BaseDisplay::instance(), windowID(), igc.gc(),
+                     up.x(), up.y(), up.width(), up.height());
+    else if (frame_pixmap)
+      XCopyArea(*display, frame_pixmap, windowID(), igc.gc(),
+                up.x() - frame_rect.x(), up.y() - frame_rect.y(),
+                up.width(), up.height(), up.x(), up.y());
+    if (todo.intersects(items_rect)) {
+      Rect up = items_rect & todo;
+      Items::const_iterator it = items.begin();
+      if (show_title) {
+        if (it == items.end()) {
+          // internal error
+          fprintf(stderr, "Basemenu: cannot draw menu items, internal error\n");
+          cache->release(tgc);
+          cache->release(igc);
+          return;
+        }
+        it++;
+      }
+
+      // only draw items that intersect with the needed update rect
+      Rect r;
+      int row = 0, col = 0;
+      int x = items_rect.x();
+      int y = items_rect.y();
+      while (it != items.end()) {
+        const Item &item = (*it++);
+        r.setRect(x, y, itemw, item.height);
+
+        if (r.intersects(todo))
+          drawItem(r, item);
+
+        y += item.height;
+        row++;
+
+        if (y >= items_rect.bottom()) {
+          // next column
+          col++;
+          row = 0;
+          y = items_rect.y();
+          x = items_rect.x() + itemw * col;
+        }
+      }
+    }
+  }
+
   if (style->borderWidth()) {
     // draw the borders of the menu if they need updating
     XRectangle xrects[5];
@@ -1385,8 +1448,8 @@ void Basemenu::exposeEvent(XEvent *e)
       num++;
     }
     if (show_title &&
-         (todo.y() < title_rect.y() + title_rect.height() ||
-           todo.y() + todo.height() > title_rect.y() + title_rect.height())) {
+        (todo.y() < title_rect.y() + title_rect.height() ||
+         todo.y() + todo.height() > title_rect.y() + title_rect.height())) {
       xrects[num].x = style->borderWidth();
       xrects[num].y = title_rect.y() + title_rect.height();
       xrects[num].width = width() - style->borderWidth() * 2;
@@ -1397,67 +1460,6 @@ void Basemenu::exposeEvent(XEvent *e)
       BGCCache::Item &bgc = cache->find(style->borderColor());
       XFillRectangles(*display, windowID(), bgc.gc(), xrects, num);
       cache->release(bgc);
-    }
-  }
-
-  BGCCache::Item &tgc = cache->find(style->menuTitle().color()),
-                 &igc = cache->find(style->menu().color());
-
-  if (show_title && todo.intersects(title_rect)) {
-    Rect up = title_rect & todo;
-    if (style->menuTitle().texture() == (BImage_Solid | BImage_Flat))
-      XFillRectangle(*display, windowID(), tgc.gc(),
-                      up.x(), up.y(), up.width(), up.height());
-    else if (title_pixmap)
-      XCopyArea(*display, title_pixmap, windowID(), tgc.gc(),
-                 up.x() - title_rect.x(), up.y() - title_rect.y(),
-                 up.width(), up.height(), up.x(), up.y());
-    drawTitle();
-  }
-  if (todo.intersects(frame_rect)) {
-    Rect up = frame_rect & todo;
-    if (style->menu().texture() == (BImage_Solid | BImage_Flat))
-      XFillRectangle(*BaseDisplay::instance(), windowID(), igc.gc(),
-                      up.x(), up.y(), up.width(), up.height());
-    else if (frame_pixmap)
-      XCopyArea(*display, frame_pixmap, windowID(), igc.gc(),
-                 up.x() - frame_rect.x(), up.y() - frame_rect.y(),
-                 up.width(), up.height(), up.x(), up.y());
-
-    Items::const_iterator it = items.begin();
-    if (show_title) {
-      if (it == items.end()) {
-        // internal error
-        fprintf(stderr, "Basemenu: cannot draw menu items, internal error\n");
-        cache->release(tgc);
-        cache->release(igc);
-        return;
-      }
-      it++;
-    }
-
-    // only draw items that intersect with the needed update rect
-    Rect r;
-    int row = 0, col = 0;
-    int x = items_rect.x();
-    int y = items_rect.y();
-    while (it != items.end()) {
-      const Item &item = (*it++);
-      r.setRect(x, y, itemw, item.height);
-
-      if (r.intersects(todo))
-        drawItem(r, item);
-
-      y += item.height;
-      row++;
-
-      if (y >= items_rect.bottom()) {
-        // next column
-        col++;
-        row = 0;
-        y = items_rect.y();
-        x = items_rect.x() + itemw * col;
-      }
     }
   }
 
