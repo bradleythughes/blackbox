@@ -1397,7 +1397,7 @@ void Basemenu::exposeEvent(XEvent *e)
         const Item &item = (*it++);
         r.setRect(x, y, itemw, item.height);
 
-        if (r.intersects(todo))
+        if (r.intersects(up))
           drawItem(r, item);
 
         y += item.height;
