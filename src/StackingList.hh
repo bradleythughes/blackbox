@@ -1,5 +1,4 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
-// Clientmenu.hh for Blackbox - an X11 Window manager
 // Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
 // Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
@@ -21,25 +20,39 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-#ifndef   __Clientmenu_hh
-#define   __Clientmenu_hh
+#include <list>
 
-#include "Menu.hh"
+class BlackboxWindow;
 
-class BScreen;
-
-
-class Clientmenu : public bt::Menu {
+class StackingList {
 public:
-  Clientmenu(bt::Application &app, BScreen& screen);
+  typedef std::list<BlackboxWindow*> WindowStack;
+  typedef WindowStack::iterator iterator;
+  typedef WindowStack::reverse_iterator reverse_iterator;
+  typedef WindowStack::const_iterator const_iterator;
+  typedef WindowStack::const_reverse_iterator const_reverse_iterator;
 
-protected:
-  virtual void itemClicked(unsigned int id, unsigned int button);
+  StackingList(void);
+  void insert(BlackboxWindow* w);
+  void append(BlackboxWindow* w);
+  void remove(BlackboxWindow* w);
+  void dump(void) const;
+  iterator& findLayer(const BlackboxWindow* const w);
+
+  bool empty(void) const { return (stack.size() == 5); }
+  WindowStack::size_type size(void) const { return stack.size() - 5; }
+  BlackboxWindow* front(void) const;
+  BlackboxWindow* back(void) const;
+  iterator begin(void) { return stack.begin(); }
+  iterator end(void) { return stack.end(); }
+  reverse_iterator rbegin(void) { return stack.rbegin(); }
+  reverse_iterator rend(void) { return stack.rend(); }
+  const_iterator begin(void) const { return stack.begin(); }
+  const_iterator end(void) const { return stack.end(); }
+  const_reverse_iterator rbegin(void) const { return stack.rbegin(); }
+  const_reverse_iterator rend(void) const { return stack.rend(); }
 
 private:
-  BScreen& _screen;
+  WindowStack stack;
+  iterator fullscreen, above, normal, below, desktop;
 };
-
-
-#endif // __Clientmenu_hh
-

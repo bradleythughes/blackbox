@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Window.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -23,18 +24,21 @@
 #ifndef   __Window_hh
 #define   __Window_hh
 
+extern "C" {
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #ifdef    SHAPE
 #  include <X11/extensions/shape.h>
 #endif // SHAPE
+}
+
+#include <string>
 
 #include "BaseDisplay.hh"
+#include "Screen.hh"
 #include "Timer.hh"
+#include "Util.hh"
 #include "Windowmenu.hh"
-
-// forward declaration
-class BlackboxWindow;
 
 #define MwmHintsFunctions     (1l << 0)
 #define MwmHintsDecorations   (1l << 1)
@@ -50,7 +54,7 @@ class BlackboxWindow;
 #define MwmDecorBorder        (1l << 1)
 #define MwmDecorHandle        (1l << 2)
 #define MwmDecorTitle         (1l << 3)
-#define MwmDecorMenu          (1l << 4)
+#define MwmDecorMenu          (1l << 4) // not used
 #define MwmDecorIconify       (1l << 5)
 #define MwmDecorMaximize      (1l << 6)
 
@@ -63,76 +67,120 @@ typedef struct MwmHints {
 #define PropMwmHintsElements  3
 
 
-class BlackboxWindow : public TimeoutHandler {
+class BWindowGroup {
 private:
-  BImageControl *image_ctrl;
+  Blackbox *blackbox;
+  Window group;
+  BlackboxWindowList windowList;
+
+public:
+  BWindowGroup(Blackbox *b, Window _group);
+  ~BWindowGroup(void);
+
+  inline Window groupWindow(void) const { return group; }
+
+  inline bool empty(void) const { return windowList.empty(); }
+
+  void addWindow(BlackboxWindow *w) { windowList.push_back(w); }
+  void removeWindow(BlackboxWindow *w) { windowList.remove(w); }
+
+  /*
+    find a window on the specified screen. the focused window (if any) is
+    checked first, otherwise the first matching window found is returned.
+    transients are returned only if allow_transients is True.
+  */
+  BlackboxWindow *find(BScreen *screen, bool allow_transients = False) const;
+};
+
+
+class BlackboxWindow : public bt::TimeoutHandler, public bt::EventHandler {
+public:
+  enum Function { Func_Resize   = (1l << 0),
+                  Func_Move     = (1l << 1),
+                  Func_Iconify  = (1l << 2),
+                  Func_Maximize = (1l << 3),
+                  Func_Close    = (1l << 4) };
+  typedef unsigned char FunctionFlags;
+
+  enum Decoration { Decor_Titlebar = (1l << 0),
+                    Decor_Handle   = (1l << 1),
+                    Decor_Border   = (1l << 2),
+                    Decor_Iconify  = (1l << 3),
+                    Decor_Maximize = (1l << 4),
+                    Decor_Close    = (1l << 5) };
+  typedef unsigned char DecorationFlags;
+
+  enum WMLayer { LAYER_NORMAL, LAYER_FULLSCREEN, LAYER_ABOVE, LAYER_BELOW,
+                 LAYER_DESKTOP };
+private:
   Blackbox *blackbox;
   BScreen *screen;
-  Display *display;
-  BTimer *timer;
-  BlackboxAttributes blackbox_attrib;
+  bt::Timer *timer;
 
   Time lastButtonPressTime;  // used for double clicks, when were we clicked
   Windowmenu *windowmenu;
 
-  int window_number, workspace_number;
-  unsigned long current_state;
+  unsigned int window_number;
 
   enum FocusMode { F_NoInput = 0, F_Passive,
-		   F_LocallyActive, F_GloballyActive };
-  FocusMode focus_mode;
+                   F_LocallyActive, F_GloballyActive };
+  enum WMSkip { SKIP_NONE, SKIP_TASKBAR, SKIP_PAGER, SKIP_BOTH };
 
-  struct _flags {
-    Bool moving,             // is moving?
-      resizing,              // is resizing?
+  struct WMState {
+    bool modal,              // is modal? (must be dismissed to continue)
       shaded,                // is shaded?
-      visible,               // is visible?
       iconic,                // is iconified?
-      transient,             // is a transient window?
+      fullscreen,            // is a full screen window
+      moving,                // is moving?
+      resizing,              // is resizing?
       focused,               // has focus?
-      stuck,                 // is omnipresent
-      modal,                 // is modal? (must be dismissed to continue)
       send_focus_message,    // should we send focus messages to our client?
-      shaped,                // does the frame use the shape extension?
-      managed;               // under blackbox's control?
-                             // maximize is special, the number corresponds
+      shaped;                // does the frame use the shape extension?
+    unsigned int maximized;  // maximize is special, the number corresponds
                              // with a mouse button
                              // if 0, not maximized
-    unsigned int maximized;  // 1 = HorizVert, 2 = Vertical, 3 = Horizontal
-  } flags;
+                             // 1 = HorizVert, 2 = Vertical, 3 = Horizontal
+    WMLayer layer;           // full screen, above, normal, below, desktop
+    WMSkip skip;             // none, taskbar, pager, both
+  };
 
   struct _client {
-    BlackboxWindow *transient_for,  // which window are we a transient for?
-      *transient;                   // which window is our transient?
-
     Window window,                  // the client's window
-      window_group;                 // the client's window group
+      window_group;
+    BlackboxWindow *transient_for;  // which window are we a transient for?
+    BlackboxWindowList transientList; // which windows are our transients?
 
-    char *title, *icon_title;
-    size_t title_len;               // strlen(title)
+    std::string title, icon_title;
 
-    int x, y,
-      old_bw;                       // client's borderwidth
+    bt::Rect rect, premax;
 
-    unsigned int width, height,
-      title_text_w,                 // width as rendered in the current font
-      min_width, min_height,        // can not be resized smaller
+    int old_bw;                       // client's borderwidth
+
+    unsigned int
+    min_width, min_height,        // can not be resized smaller
       max_width, max_height,        // can not be resized larger
       width_inc, height_inc,        // increment step
+#if 0 // not supported at the moment
       min_aspect_x, min_aspect_y,   // minimum aspect ratio
       max_aspect_x, max_aspect_y,   // maximum aspect ratio
+#endif
       base_width, base_height,
       win_gravity;
 
-    unsigned long initial_state, normal_hint_flags, wm_hint_flags;
+    unsigned long current_state, normal_hint_flags;
 
-    MwmHints *mwm_hint;
-    BlackboxHints *blackbox_hint;
+    bt::Netwm::Strut *strut;
+    FocusMode focus_mode;
+    WMState state;
+    Atom window_type;
+    FunctionFlags functions;
+    /*
+     * what decorations do we have?
+     * this is based on the type of the client window as well as user input
+     * the menu is not really decor, but it goes hand in hand with the decor
+     */
+    DecorationFlags decorations;
   } client;
-
-  struct _functions {
-    Bool resize, move, iconify, maximize, close;
-  } functions;
 
   /*
    * client window = the application's window
@@ -153,15 +201,6 @@ private:
    *          Also drawn between the grips and the handle
    */
 
-  /*
-   * what decorations do we have?
-   * this is based on the type of the client window as well as user input
-   * the menu is not really decor, but it goes hand in hand with the decor
-   */
-  struct _decorations {
-    Bool titlebar, handle, border, iconify, maximize, close, menu;
-  } decorations;
-
   struct _frame {
     // u -> unfocused, f -> has focus
     unsigned long ulabel_pixel, flabel_pixel, utitle_pixel,
@@ -179,139 +218,167 @@ private:
       close_button, iconify_button, maximize_button,
       right_grip, left_grip;
 
+    /*
+     * size and location of the box drawn while the window dimensions or
+     * location is being changed, ie. resized or moved
+     */
+    bt::Rect changing;
 
-    unsigned int resize_w, resize_h;
-    int resize_x, resize_y,    // size and location of box drawn while resizing
-      move_x, move_y;          // location of box drawn while moving
+    // frame geometry
+    bt::Rect rect;
 
-    int x, y,
-      grab_x, grab_y,          // where was the window when it was grabbed?
-      y_border, y_handle;      // where within frame is the border and handle
+    /*
+     * margins between the frame and client, this has nothing to do
+     * with netwm, it is simply code reuse for similar functionality
+     */
+    bt::Netwm::Strut margin;
+    int grab_x, grab_y;         // where was the window when it was grabbed?
 
-    unsigned int width, height, title_h, label_w, label_h, handle_h,
-      button_w, button_h, grip_w, grip_h, mwm_border_w, border_h, border_w,
-      bevel_w, snap_w, snap_h;
+    unsigned int inside_w, inside_h, // window w/h without border_w
+      title_h, label_w, label_h, handle_h,
+      button_w, grip_w, mwm_border_w, border_w,
+      bevel_w;
   } frame;
 
-protected:
-  Bool getState(void);
-  Window createToplevelWindow(int x, int y, unsigned int width,
-			      unsigned int height, unsigned int borderwidth);
-  Window createChildWindow(Window parent, Cursor = None);
+  BlackboxWindow(const BlackboxWindow&);
+  BlackboxWindow& operator=(const BlackboxWindow&);
 
+  bool getState(void);
+  Window createToplevelWindow();
+  Window createChildWindow(Window parent, unsigned long event_mask,
+                           Cursor = None);
+
+  void getNetwmHints(void);
   void getWMName(void);
   void getWMIconName(void);
   void getWMNormalHints(void);
   void getWMProtocols(void);
   void getWMHints(void);
   void getMWMHints(void);
-  void getBlackboxHints(void);
+  void getTransientInfo(void);
   void setNetWMAttributes(void);
   void associateClientWindow(void);
   void decorate(void);
   void decorateLabel(void);
-  void positionButtons(Bool redecorate_label = False);
+  void positionButtons(bool redecorate_label = False);
   void positionWindows(void);
+  void createHandle(void);
+  void destroyHandle(void);
+  void createTitlebar(void);
+  void destroyTitlebar(void);
   void createCloseButton(void);
+  void destroyCloseButton(void);
   void createIconifyButton(void);
+  void destroyIconifyButton(void);
   void createMaximizeButton(void);
-  void redrawLabel(void);
-  void redrawAllButtons(void);
-  void redrawCloseButton(Bool);
-  void redrawIconifyButton(Bool);
-  void redrawMaximizeButton(Bool);
-  void restoreGravity(void);
-  void setGravityOffsets(void);
-  void setState(unsigned long);
+  void destroyMaximizeButton(void);
+  void redrawWindowFrame(void) const;
+  void redrawLabel(void) const;
+  void redrawAllButtons(void) const;
+  void redrawCloseButton(bool pressed) const;
+  void redrawIconifyButton(bool pressed) const;
+  void redrawMaximizeButton(bool pressed) const;
+  void applyGravity(bt::Rect &r);
+  void restoreGravity(bt::Rect &r);
+  void setState(unsigned long new_state, bool closing = False);
   void upsize(void);
-  void downsize(void);
-  void right_fixsize(int *gx = 0, int *gy = 0);
-  void left_fixsize(int *gx = 0, int *gy = 0);
 
+  enum Corner { TopLeft, TopRight };
+  void constrain(Corner anchor, unsigned int *pw = 0, unsigned int *ph = 0);
 
 public:
-  BlackboxWindow(Blackbox *b, Window w, BScreen *s = (BScreen *) 0);
+  BlackboxWindow(Blackbox *b, Window w, BScreen *s);
   virtual ~BlackboxWindow(void);
 
-  inline Bool isTransient(void) const { return flags.transient; }
-  inline Bool isFocused(void) const { return flags.focused; }
-  inline Bool isVisible(void) const { return flags.visible; }
-  inline Bool isIconic(void) const { return flags.iconic; }
-  inline Bool isShaded(void) const { return flags.shaded; }
-  inline Bool isMaximized(void) const { return flags.maximized; }
-  inline Bool isStuck(void) const { return flags.stuck; }
-  inline Bool isIconifiable(void) const { return functions.iconify; }
-  inline Bool isMaximizable(void) const { return functions.maximize; }
-  inline Bool isResizable(void) const { return functions.resize; }
-  inline Bool isClosable(void) const { return functions.close; }
+  inline bool isTransient(void) const { return client.transient_for != 0; }
+  inline bool isFocused(void) const { return client.state.focused; }
+  inline bool isVisible(void) const
+  { return (! (client.current_state == WithdrawnState ||
+               client.state.iconic)); }
+  inline bool isIconic(void) const { return client.state.iconic; }
+  inline bool isShaded(void) const { return client.state.shaded; }
+  inline bool isMaximized(void) const { return client.state.maximized; }
+  inline bool isModal(void) const { return client.state.modal; }
+  inline bool isIconifiable(void) const
+  { return client.functions & Func_Iconify; }
+  inline bool isMaximizable(void) const
+  { return client.functions & Func_Maximize; }
+  inline bool isResizable(void) const
+  { return client.functions & Func_Resize; }
+  inline bool isClosable(void) const { return client.functions & Func_Close; }
 
-  inline Bool hasTitlebar(void) const { return decorations.titlebar; }
-  inline Bool hasTransient(void) const
-  { return ((client.transient) ? True : False); }
+  inline bool hasTitlebar(void) const
+  { return client.decorations & Decor_Titlebar; }
 
-  inline BlackboxWindow *getTransient(void) { return client.transient; }
-  inline BlackboxWindow *getTransientFor(void) { return client.transient_for; }
+  inline const BlackboxWindowList &getTransients(void) const
+  { return client.transientList; }
+  BlackboxWindow *getTransientFor(void) const;
 
-  inline BScreen *getScreen(void) { return screen; }
+  inline BScreen *getScreen(void) const { return screen; }
 
-  inline const Window &getFrameWindow(void) const { return frame.window; }
-  inline const Window &getClientWindow(void) const { return client.window; }
+  inline Window getFrameWindow(void) const { return frame.window; }
+  inline Window getClientWindow(void) const { return client.window; }
+  inline Window getGroupWindow(void) const { return client.window_group; }
 
-  inline Windowmenu * getWindowmenu(void) { return windowmenu; }
+  inline Windowmenu* getWindowmenu(void) const { return windowmenu; }
 
-  inline char **getTitle(void) { return &client.title; }
-  inline char **getIconTitle(void) { return &client.icon_title; }
-  inline const int &getXFrame(void) const { return frame.x; }
-  inline const int &getYFrame(void) const { return frame.y; }
-  inline const int &getXClient(void) const { return client.x; }
-  inline const int &getYClient(void) const { return client.y; }
-  inline const int &getWorkspaceNumber(void) const { return workspace_number; }
-  inline const int &getWindowNumber(void) const { return window_number; }
+  inline const char *getTitle(void) const
+  { return client.title.c_str(); }
+  inline const char *getIconTitle(void) const
+  { return client.icon_title.c_str(); }
 
-  inline const unsigned int &getWidth(void) const { return frame.width; }
-  inline const unsigned int &getHeight(void) const { return frame.height; }
-  inline const unsigned int &getClientHeight(void) const
-  { return client.height; }
-  inline const unsigned int &getClientWidth(void) const
-  { return client.width; }
-  inline const unsigned int &getTitleHeight(void) const
+  inline unsigned int getWindowNumber(void) const { return window_number; }
+
+  inline const bt::Rect &frameRect(void) const { return frame.rect; }
+  inline const bt::Rect &clientRect(void) const { return client.rect; }
+
+  inline unsigned int getTitleHeight(void) const
   { return frame.title_h; }
 
-  inline void setWindowNumber(int n) { window_number = n; }
-  
-  Bool validateClient(void);
-  Bool setInputFocus(void);
+  inline WMLayer getLayer(void) const { return client.state.layer; }
+  unsigned long normalHintFlags(void) const
+  { return client.normal_hint_flags; }
 
-  void setFocusFlag(Bool);
+  inline void setWindowNumber(int n) { window_number = n; }
+
+  inline void setModal(bool flag) { client.state.modal = flag; }
+
+  bool validateClient(void) const;
+  bool setInputFocus(void);
+
+  void setFocusFlag(bool focus);
   void iconify(void);
-  void deiconify(Bool reassoc = True, Bool raise = True);
+  void deiconify(bool reassoc = True, bool raise = True);
+  void show(void);
   void close(void);
   void withdraw(void);
   void maximize(unsigned int button);
+  void remaximize(void);
   void shade(void);
-  void stick(void);
-  void unstick(void);
   void reconfigure(void);
-  void installColormap(Bool);
-  void restore(void);
+  void grabButtons(void);
+  void ungrabButtons(void);
+  void installColormap(bool install);
+  void restore(bool remap);
   void configure(int dx, int dy, unsigned int dw, unsigned int dh);
-  void setWorkspace(int n);
-  void changeBlackboxHints(BlackboxHints *);
-  void restoreAttributes(void);
 
-  void buttonPressEvent(XButtonEvent *);
-  void buttonReleaseEvent(XButtonEvent *);
-  void motionNotifyEvent(XMotionEvent *);
-  void destroyNotifyEvent(XDestroyWindowEvent *);
-  void mapRequestEvent(XMapRequestEvent *);
-  void mapNotifyEvent(XMapEvent *);
-  void unmapNotifyEvent(XUnmapEvent *);
-  void propertyNotifyEvent(Atom);
-  void exposeEvent(XExposeEvent *);
-  void configureRequestEvent(XConfigureRequestEvent *);
+  void clientMessageEvent(const XClientMessageEvent * const ce);
+  void buttonPressEvent(const XButtonEvent * const be);
+  void buttonReleaseEvent(const XButtonEvent * const re);
+  void motionNotifyEvent(const XMotionEvent * const me);
+  void destroyNotifyEvent(const XDestroyWindowEvent * const /*unused*/);
+  void mapRequestEvent(const XMapRequestEvent * const /*unused*/);
+  void unmapNotifyEvent(const XUnmapEvent * const /*unused*/);
+  void reparentNotifyEvent(const XReparentEvent * const /*unused*/);
+  void propertyNotifyEvent(const XPropertyEvent * const pe);
+  void exposeEvent(const XExposeEvent * const ee);
+  void configureRequestEvent(const XConfigureRequestEvent * const cr);
+  void enterNotifyEvent(const XCrossingEvent * const ce);
+  void leaveNotifyEvent(const XCrossingEvent * const /*unused*/);
 
 #ifdef    SHAPE
-  void shapeEvent(XShapeEvent *);
+  void configureShape(void);
+  void shapeEvent(const XShapeEvent * const /*unused*/);
 #endif // SHAPE
 
   virtual void timeout(void);

@@ -1,5 +1,4 @@
 // -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
-// Clientmenu.hh for Blackbox - an X11 Window manager
 // Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
 // Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
@@ -21,25 +20,37 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-#ifndef   __Clientmenu_hh
-#define   __Clientmenu_hh
+#ifdef    HAVE_CONFIG_H
+#  include "../config.h"
+#endif // HAVE_CONFIG_H
 
-#include "Menu.hh"
+extern "C" {
+#include <assert.h>
+}
 
-class BScreen;
-
-
-class Clientmenu : public bt::Menu {
-public:
-  Clientmenu(bt::Application &app, BScreen& screen);
-
-protected:
-  virtual void itemClicked(unsigned int id, unsigned int button);
-
-private:
-  BScreen& _screen;
-};
+#include "Screen.hh"
+#include "i18n.hh"
+#include "Stackmenu.hh"
 
 
-#endif // __Clientmenu_hh
+Stackmenu::Stackmenu(bt::Application &app, unsigned int screen,
+                     BScreen *bscreen)
+  : bt::Menu(app, screen), _bscreen(bscreen) {
+  setAutoDelete(false);
+  setTitle("Window access");
+  showTitle();
+}
 
+
+void Stackmenu::itemClicked(unsigned int id, unsigned int button) {
+  if (button != 1)
+    return;
+
+  switch (id) {
+  case 499: // iconmenu
+    break;
+
+  default:
+    break;
+  } // switch
+}

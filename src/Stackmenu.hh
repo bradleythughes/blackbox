@@ -1,6 +1,6 @@
-// WorkspaceMenu.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -20,26 +20,24 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-#ifndef   __Workspacemenu_hh
-#define   __Workspacemenu_hh
+#ifndef   __Stackmenu_hh
+#define   __Stackmenu_hh
 
-#include "Basemenu.hh"
+#include "Menu.hh"
 
-// forward declaration
-class Workspacemenu;
-class Toolbar;
+class BScreen;
 
-class Workspacemenu : public Basemenu {
-private:
-  BScreen *screen;
+
+class Stackmenu : public bt::Menu {
+public:
+  Stackmenu(bt::Application &app, unsigned int screen, BScreen *bscreen);
 
 protected:
-  virtual void itemSelected(int, int);
+  virtual void itemClicked(unsigned int id, unsigned int button);
 
-public:
-  Workspacemenu(BScreen *);
+private:
+  BScreen *_bscreen;
 };
 
-
-#endif // __Workspacemenu_hh
+#endif // __Stackmenu_hh
 

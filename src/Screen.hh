@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Screen.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -23,6 +24,7 @@
 #ifndef   __Screen_hh
 #define   __Screen_hh
 
+extern "C" {
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
 
@@ -36,296 +38,284 @@
 #    include <time.h>
 #  endif // HAVE_SYS_TIME_H
 #endif // TIME_WITH_SYS_TIME
+}
 
-#include "BaseDisplay.hh"
+#include <list>
+#include <vector>
+typedef std::vector<Window> WindowStack;
+
+#include "Color.hh"
+#include "Texture.hh"
+#include "Clientmenu.hh"
 #include "Configmenu.hh"
 #include "Iconmenu.hh"
-#include "LinkedList.hh"
-#include "Netizen.hh"
-#include "Rootmenu.hh"
+#include "Netwm.hh"
+#include "Stackmenu.hh"
 #include "Timer.hh"
-#include "Workspace.hh"
-#include "Workspacemenu.hh"
 #include "blackbox.hh"
-#ifdef    SLIT
-#  include "Slit.hh"
-#endif // SLIT
-#include "Image.hh"
 
 // forward declaration
-class BScreen;
+class Rootmenu;
+class Slit;
+class StackingList;
 
 struct WindowStyle {
-  BColor f_focus, f_unfocus, l_text_focus, l_text_unfocus, b_pic_focus,
+  bt::Color l_text_focus, l_text_unfocus, b_pic_focus,
     b_pic_unfocus;
-  BTexture t_focus, t_unfocus, l_focus, l_unfocus, h_focus, h_unfocus,
-    b_focus, b_unfocus, b_pressed, g_focus, g_unfocus;
-  GC l_text_focus_gc, l_text_unfocus_gc, b_pic_focus_gc, b_pic_unfocus_gc;
-
-  XFontSet fontset;
-  XFontSetExtents *fontset_extents;
-  XFontStruct *font;
-  
-  int justify;
+  bt::Texture f_focus, f_unfocus, t_focus, t_unfocus, l_focus, l_unfocus,
+    h_focus, h_unfocus, b_focus, b_unfocus, b_pressed, g_focus, g_unfocus;
+  bt::Font font;
+  bt::Alignment alignment;
+  unsigned int handle_width, frame_width;
 };
 
 struct ToolbarStyle {
-  BColor l_text, w_text, c_text, b_pic;
-  BTexture toolbar, label, window, button, pressed, clock;
-  GC l_text_gc, w_text_gc, c_text_gc, b_pic_gc;
-
-  XFontSet fontset;
-  XFontSetExtents *fontset_extents;
-  XFontStruct *font;
-  
-  int justify;
-};
-
-struct MenuStyle {
-  BColor t_text, f_text, h_text, d_text;
-  BTexture title, frame, hilite;
-  GC t_text_gc, f_text_gc, h_text_gc, d_text_gc, hilite_gc;
-
-  XFontSet t_fontset, f_fontset;
-  XFontSetExtents *t_fontset_extents, *f_fontset_extents;
-  XFontStruct *t_font, *f_font;
-
-  int t_justify, f_justify, bullet, bullet_pos;
+  bt::Color l_text, w_text, c_text, b_pic;
+  bt::Texture toolbar, label, window, button, pressed, clock;
+  bt::Font font;
+  bt::Alignment alignment;
 };
 
 
-class BScreen : public ScreenInfo {
+typedef std::list<BlackboxWindow*> BlackboxWindowList;
+typedef std::list<Window> WindowList;
+
+
+class BScreen : public bt::NoCopy, public bt::EventHandler,
+                public bt::TimeoutHandler {
 private:
-  Bool root_colormap_installed, managed, geom_visible;
+  bool root_colormap_installed, managed, geom_visible;
   GC opGC;
   Pixmap geom_pixmap;
   Window geom_window;
 
+  const bt::ScreenInfo& screen_info;
   Blackbox *blackbox;
-  BImageControl *image_control;
+  bt::ImageControl *image_control;
   Configmenu *configmenu;
   Iconmenu *iconmenu;
   Rootmenu *rootmenu;
+  Clientmenu *clientmenu;
+  Stackmenu *stackmenu;
 
-  LinkedList<Rootmenu> *rootmenuList;
-  LinkedList<Netizen> *netizenList;
-  LinkedList<BlackboxWindow> *iconList;
+  BlackboxWindowList iconList, windowList;
+  StackingList* stackingList;
+  unsigned int cascade_x, cascade_y;
 
-#ifdef    SLIT
   Slit *slit;
-#endif // SLIT
-
   Toolbar *toolbar;
-  Workspace *current_workspace;
-  Workspacemenu *workspacemenu;
 
   unsigned int geom_w, geom_h;
   unsigned long event_mask;
 
-  LinkedList<char> *workspaceNames;
-  LinkedList<Workspace> *workspacesList;
+  bt::Rect usableArea;
+  bool area_is_dirty;
 
-  struct resource {
+  typedef std::list<bt::Netwm::Strut*> StrutList;
+  StrutList strutList;
+
+  struct screen_resource {
     WindowStyle wstyle;
     ToolbarStyle tstyle;
-    MenuStyle mstyle;
 
-    Bool toolbar_on_top, toolbar_auto_hide, sloppy_focus, auto_raise,
+    bool toolbar_on_top, toolbar_auto_hide, sloppy_focus, auto_raise,
       auto_edge_balance, image_dither, ordered_dither, opaque_move, full_max,
-      focus_new, focus_last;
-    BColor border_color;
+      focus_new, focus_last, click_raise, allow_scroll_lock;
+    bt::Color border_color;
     XrmDatabase stylerc;
 
-    int workspaces, toolbar_placement, toolbar_width_percent, placement_policy,
+    int toolbar_placement, toolbar_width_percent, placement_policy,
       edge_snap_threshold, row_direction, col_direction;
 
-#ifdef    SLIT
-    Bool slit_on_top, slit_auto_hide;
+    bool slit_on_top, slit_auto_hide;
     int slit_placement, slit_direction;
-#endif // SLIT
 
-    unsigned int handle_width, bevel_width, frame_width, border_width;
+    unsigned int bevel_width, border_width;
 
-#ifdef    HAVE_STRFTIME
-    char *strftime_format;
-#else // !HAVE_STRFTIME
-    Bool clock24hour;
-    int date_format;
-#endif // HAVE_STRFTIME
-
+    std::string strftime_format;
   } resource;
 
+  bt::Timer *timer;
 
-protected:
-  Bool parseMenuFile(FILE *, Rootmenu *);
-
-  void readDatabaseTexture(char *, char *, BTexture *, unsigned long);
-  void readDatabaseColor(char *, char *, BColor *, unsigned long);
-
-  void readDatabaseFontSet(char *, char *, XFontSet *);
-  XFontSet createFontSet(char *);
-  void readDatabaseFont(char *, char *, XFontStruct **);
+  bool parseMenuFile(FILE *file, Rootmenu *menu);
 
   void InitMenu(void);
   void LoadStyle(void);
 
+  void manageWindow(Window w);
+  void unmanageWindow(BlackboxWindow *w, bool remap);
+
+  bool smartPlacement(bt::Rect& win, const bt::Rect& sandbox);
+  bool cascadePlacement(bt::Rect& win, const bt::Rect& sandbox);
+
+  void raiseTransients(const BlackboxWindow* win, WindowStack& stack);
+  void lowerTransients(const BlackboxWindow* win, WindowStack& stack);
+
+  void updateAvailableArea(void);
+  void updateWorkareaHint(void) const;
 
 public:
-  BScreen(Blackbox *, int);
-  ~BScreen(void);
-
-  inline const Bool &isToolbarOnTop(void) const
-  { return resource.toolbar_on_top; }
-  inline const Bool &doToolbarAutoHide(void) const
-  { return resource.toolbar_auto_hide; }
-  inline const Bool &isSloppyFocus(void) const
-  { return resource.sloppy_focus; }
-  inline const Bool &isRootColormapInstalled(void) const
-  { return root_colormap_installed; }
-  inline const Bool &doAutoRaise(void) const { return resource.auto_raise; }
-  inline const Bool &isScreenManaged(void) const { return managed; }
-  inline const Bool &doImageDither(void) const
-  { return resource.image_dither; }
-  inline const Bool &doOrderedDither(void) const
-  { return resource.ordered_dither; }
-  inline const Bool &doOpaqueMove(void) const { return resource.opaque_move; }
-  inline const Bool &doFullMax(void) const { return resource.full_max; }
-  inline const Bool &doFocusNew(void) const { return resource.focus_new; }
-  inline const Bool &doFocusLast(void) const { return resource.focus_last; }
-
-  inline const GC &getOpGC() const { return opGC; }
-
-  inline Blackbox *getBlackbox(void) { return blackbox; }
-  inline BColor *getBorderColor(void) { return &resource.border_color; }
-  inline BImageControl *getImageControl(void) { return image_control; }
-  inline Rootmenu *getRootmenu(void) { return rootmenu; }
-
-#ifdef   SLIT
-  inline const Bool &isSlitOnTop(void) const { return resource.slit_on_top; }
-  inline const Bool &doSlitAutoHide(void) const
-  { return resource.slit_auto_hide; }
-  inline Slit *getSlit(void) { return slit; }
-  inline const int &getSlitPlacement(void) const
-  { return resource.slit_placement; }
-  inline const int &getSlitDirection(void) const
-  { return resource.slit_direction; }
-  inline void saveSlitPlacement(int p) { resource.slit_placement = p; }
-  inline void saveSlitDirection(int d) { resource.slit_direction = d; }
-  inline void saveSlitOnTop(Bool t)    { resource.slit_on_top = t; }
-  inline void saveSlitAutoHide(Bool t) { resource.slit_auto_hide = t; }
-#endif // SLIT
-
-  inline Toolbar *getToolbar(void) { return toolbar; }
-
-  inline Workspace *getWorkspace(int w) { return workspacesList->find(w); }
-  inline Workspace *getCurrentWorkspace(void) { return current_workspace; }
-
-  inline Workspacemenu *getWorkspacemenu(void) { return workspacemenu; }
-
-  inline const unsigned int &getHandleWidth(void) const
-  { return resource.handle_width; }
-  inline const unsigned int &getBevelWidth(void) const
-  { return resource.bevel_width; }
-  inline const unsigned int &getFrameWidth(void) const
-  { return resource.frame_width; }
-  inline const unsigned int &getBorderWidth(void) const
-  { return resource.border_width; }
-
-  inline const int getCurrentWorkspaceID()
-  { return current_workspace->getWorkspaceID(); }
-  inline const int getCount(void) { return workspacesList->count(); }
-  inline const int getIconCount(void) { return iconList->count(); }
-  inline const int &getNumberOfWorkspaces(void) const
-  { return resource.workspaces; }
-  inline const int &getToolbarPlacement(void) const
-  { return resource.toolbar_placement; }
-  inline const int &getToolbarWidthPercent(void) const
-  { return resource.toolbar_width_percent; }
-  inline const int &getPlacementPolicy(void) const
-  { return resource.placement_policy; }
-  inline const int &getEdgeSnapThreshold(void) const
-  { return resource.edge_snap_threshold; }
-  inline const int &getRowPlacementDirection(void) const
-  { return resource.row_direction; }
-  inline const int &getColPlacementDirection(void) const
-  { return resource.col_direction; }
-
-  inline void setRootColormapInstalled(Bool r) { root_colormap_installed = r; }
-  inline void saveSloppyFocus(Bool s) { resource.sloppy_focus = s; }
-  inline void saveAutoRaise(Bool a) { resource.auto_raise = a; }
-  inline void saveWorkspaces(int w) { resource.workspaces = w; }
-  inline void saveToolbarOnTop(Bool r) { resource.toolbar_on_top = r; }
-  inline void saveToolbarAutoHide(Bool r) { resource.toolbar_auto_hide = r; }
-  inline void saveToolbarWidthPercent(int w)
-  { resource.toolbar_width_percent = w; }
-  inline void saveToolbarPlacement(int p) { resource.toolbar_placement = p; }
-  inline void savePlacementPolicy(int p) { resource.placement_policy = p; }
-  inline void saveRowPlacementDirection(int d) { resource.row_direction = d; }
-  inline void saveColPlacementDirection(int d) { resource.col_direction = d; }
-  inline void saveEdgeSnapThreshold(int t)
-  { resource.edge_snap_threshold = t; }
-  inline void saveImageDither(Bool d) { resource.image_dither = d; }
-  inline void saveOpaqueMove(Bool o) { resource.opaque_move = o; }
-  inline void saveFullMax(Bool f) { resource.full_max = f; }
-  inline void saveFocusNew(Bool f) { resource.focus_new = f; }
-  inline void saveFocusLast(Bool f) { resource.focus_last = f; }
-  inline void iconUpdate(void) { iconmenu->update(); }
-
-#ifdef    HAVE_STRFTIME
-  inline char *getStrftimeFormat(void) { return resource.strftime_format; }
-  void saveStrftimeFormat(char *);
-#else // !HAVE_STRFTIME
-  inline int getDateFormat(void) { return resource.date_format; }
-  inline void saveDateFormat(int f) { resource.date_format = f; }
-  inline Bool isClock24Hour(void) { return resource.clock24hour; }
-  inline void saveClock24Hour(Bool c) { resource.clock24hour = c; }
-#endif // HAVE_STRFTIME
-
-  inline WindowStyle *getWindowStyle(void) { return &resource.wstyle; }
-  inline MenuStyle *getMenuStyle(void) { return &resource.mstyle; }
-  inline ToolbarStyle *getToolbarStyle(void) { return &resource.tstyle; }
-
-  BlackboxWindow *getIcon(int);
-
-  int addWorkspace(void);
-  int removeLastWorkspace(void);
-
-  void removeWorkspaceNames(void);
-  void addWorkspaceName(char *);
-  void addNetizen(Netizen *);
-  void removeNetizen(Window);
-  void addIcon(BlackboxWindow *);
-  void removeIcon(BlackboxWindow *);
-  char* getNameOfWorkspace(int);
-  void changeWorkspaceID(int);
-  void raiseWindows(Window *, int);
-  void reassociateWindow(BlackboxWindow *, int, Bool);
-  void prevFocus(void);
-  void nextFocus(void);
-  void raiseFocus(void);
-  void reconfigure(void);
-  void rereadMenu(void);
-  void shutdown(void);
-  void showPosition(int, int);
-  void showGeometry(unsigned int, unsigned int);
-  void hideGeometry(void);
-
-  void updateNetizenCurrentWorkspace(void);
-  void updateNetizenWorkspaceCount(void);
-  void updateNetizenWindowFocus(void);
-  void updateNetizenWindowAdd(Window, unsigned long);
-  void updateNetizenWindowDel(Window);
-  void updateNetizenConfigNotify(XEvent *);
-  void updateNetizenWindowRaise(Window);
-  void updateNetizenWindowLower(Window);
-
   enum { RowSmartPlacement = 1, ColSmartPlacement, CascadePlacement, LeftRight,
          RightLeft, TopBottom, BottomTop };
-  enum { LeftJustify = 1, RightJustify, CenterJustify };
   enum { RoundBullet = 1, TriangleBullet, SquareBullet, NoBullet };
   enum { Restart = 1, RestartOther, Exit, Shutdown, Execute, Reconfigure,
          WindowShade, WindowIconify, WindowMaximize, WindowClose, WindowRaise,
-         WindowLower, WindowStick, WindowKill, SetStyle };
+         WindowLower, WindowKill, SetStyle };
+  enum FocusModel { SloppyFocus, ClickToFocus };
+
+  BScreen(Blackbox *bb, unsigned int scrn);
+  ~BScreen(void);
+
+  bool isToolbarOnTop(void) const
+  { return resource.toolbar_on_top; }
+  bool doToolbarAutoHide(void) const
+  { return resource.toolbar_auto_hide; }
+  bool isSloppyFocus(void) const
+  { return resource.sloppy_focus; }
+  bool isRootColormapInstalled(void) const
+  { return root_colormap_installed; }
+  bool doAutoRaise(void) const { return resource.auto_raise; }
+  bool doClickRaise(void) const { return resource.click_raise; }
+  bool isScreenManaged(void) const { return managed; }
+  bool doImageDither(void) const
+  { return resource.image_dither; }
+  bool doOrderedDither(void) const
+  { return resource.ordered_dither; }
+  bool doOpaqueMove(void) const { return resource.opaque_move; }
+  bool doFullMax(void) const { return resource.full_max; }
+  bool doFocusNew(void) const { return resource.focus_new; }
+  bool doFocusLast(void) const { return resource.focus_last; }
+  bool allowScrollLock(void) const { return resource.allow_scroll_lock;}
+
+  const GC &getOpGC(void) const { return opGC; }
+  const bt::ScreenInfo& getScreenInfo(void) const { return screen_info; }
+  Blackbox *getBlackbox(void) { return blackbox; }
+  bt::Color *getBorderColor(void) { return &resource.border_color; }
+  bt::ImageControl *getImageControl(void) { return image_control; }
+  Rootmenu *getRootmenu(void) { return rootmenu; }
+
+  // pass throughs to ScreenInfo
+  Colormap getColormap(void) const
+  { return screen_info.getColormap();}
+  Window getRootWindow(void) const
+  { return screen_info.getRootWindow(); }
+  int getDepth(void) const { return screen_info.getDepth(); }
+  Visual* getVisual(void) const { return screen_info.getVisual(); }
+  unsigned int getWidth(void) const { return screen_info.getWidth(); }
+  unsigned int getHeight(void) const
+  { return screen_info.getHeight(); }
+  const std::string& displayString(void) const
+  { return screen_info.displayString(); }
+  unsigned int screenNumber(void) const
+  { return screen_info.getScreenNumber();}
+
+  bool isSlitOnTop(void) const { return resource.slit_on_top; }
+  bool doSlitAutoHide(void) const
+  { return resource.slit_auto_hide; }
+  Slit *getSlit(void) { return slit; }
+  int getSlitPlacement(void) const
+  { return resource.slit_placement; }
+  int getSlitDirection(void) const
+  { return resource.slit_direction; }
+  void saveSlitPlacement(int p) { resource.slit_placement = p; }
+  void saveSlitDirection(int d) { resource.slit_direction = d; }
+  void saveSlitOnTop(bool t)    { resource.slit_on_top = t; }
+  void saveSlitAutoHide(bool t) { resource.slit_auto_hide = t; }
+
+  Toolbar *getToolbar(void) { return toolbar; }
+
+  Stackmenu *getStackmenu(void) { return stackmenu; }
+
+  unsigned int getBevelWidth(void) const
+  { return resource.bevel_width; }
+  unsigned int getBorderWidth(void) const
+  { return resource.border_width; }
+
+  unsigned int getIconCount(void) const { return iconList.size(); }
+  int getToolbarPlacement(void) const
+  { return resource.toolbar_placement; }
+  int getToolbarWidthPercent(void) const
+  { return resource.toolbar_width_percent; }
+  int getPlacementPolicy(void) const
+  { return resource.placement_policy; }
+  int getEdgeSnapThreshold(void) const
+  { return resource.edge_snap_threshold; }
+  int getRowPlacementDirection(void) const
+  { return resource.row_direction; }
+  int getColPlacementDirection(void) const
+  { return resource.col_direction; }
+
+  BlackboxWindow* getWindow(unsigned int id);
+
+  void setRootColormapInstalled(bool r) { root_colormap_installed = r; }
+  void saveSloppyFocus(bool s) { resource.sloppy_focus = s; }
+  void saveAutoRaise(bool a) { resource.auto_raise = a; }
+  void saveClickRaise(bool c) { resource.click_raise = c; }
+  void saveToolbarOnTop(bool r) { resource.toolbar_on_top = r; }
+  void saveToolbarAutoHide(bool r) { resource.toolbar_auto_hide = r; }
+  void saveToolbarWidthPercent(int w)
+  { resource.toolbar_width_percent = w; }
+  void saveToolbarPlacement(int p) { resource.toolbar_placement = p; }
+  void savePlacementPolicy(int p) { resource.placement_policy = p; }
+  void saveRowPlacementDirection(int d) { resource.row_direction = d; }
+  void saveColPlacementDirection(int d) { resource.col_direction = d; }
+  void saveEdgeSnapThreshold(int t)
+  { resource.edge_snap_threshold = t; }
+  void saveImageDither(bool d) { resource.image_dither = d; }
+  void saveOpaqueMove(bool o) { resource.opaque_move = o; }
+  void saveFullMax(bool f) { resource.full_max = f; }
+  void saveFocusNew(bool f) { resource.focus_new = f; }
+  void saveFocusLast(bool f) { resource.focus_last = f; }
+  void saveAllowScrollLock(bool a) { resource.allow_scroll_lock = a; }
+
+  const char *getStrftimeFormat(void)
+  { return resource.strftime_format.c_str(); }
+  void saveStrftimeFormat(const std::string& format);
+
+  WindowStyle *getWindowStyle(void) { return &resource.wstyle; }
+  ToolbarStyle *getToolbarStyle(void) { return &resource.tstyle; }
+
+  BlackboxWindow *getIcon(unsigned int index);
+
+  const bt::Rect& availableArea(void);
+  void addStrut(bt::Netwm::Strut *strut);
+  void removeStrut(bt::Netwm::Strut *strut);
+  void updateStrut(void);
+
+  void updateClientListHint(void) const;
+  void updateClientListStackingHint(void) const;
+  void updateDesktopNamesHint(void) const;
+
+  void iconifyWindow(BlackboxWindow *w);
+  void removeIcon(BlackboxWindow *w);
+  void addWindow(Window w);
+  void releaseWindow(BlackboxWindow *w, bool remap);
+  void raiseWindow(BlackboxWindow *w);
+  void lowerWindow(BlackboxWindow *w);
+  void propagateWindowName(const BlackboxWindow *w);
+  void placeWindow(BlackboxWindow* w);
+  void restackWindow(BlackboxWindow* w);
+
+  void raiseWindows(const bt::Netwm::WindowList* const workspace_stack);
+  BlackboxWindow* getNextWindowInList(BlackboxWindow *w) const;
+  BlackboxWindow* getPrevWindowInList(BlackboxWindow *w) const;
+
+  void nextFocus(void);
+  void prevFocus(void);
+  void raiseFocus(void);
+  void reconfigure(void);
+  void toggleFocusModel(FocusModel model);
+  void rereadMenu(void);
+  void shutdown(void);
+  void showPosition(int x, int y);
+  void showGeometry(unsigned int gx, unsigned int gy);
+  void hideGeometry(void);
+
+  void clientMessageEvent(const XClientMessageEvent * const event);
+  void buttonPressEvent(const XButtonEvent * const event);
+  void configureRequestEvent(const XConfigureRequestEvent * const event);
+
+  virtual void timeout(void);
 };
 
 
