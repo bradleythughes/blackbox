@@ -486,7 +486,7 @@ void BaseDisplay::process_event(XEvent *e)
 {
   Widget *widget = 0;
 
-  Mapper::iterator it = Widget::mapper.find(e->xany.window);
+  WidgetMapper::iterator it = Widget::mapper.find(e->xany.window);
   if (it != Widget::mapper.end())
     widget = (*it).second;
 

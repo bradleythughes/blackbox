@@ -26,9 +26,9 @@
 
 #include <X11/Xlib.h>
 
-#include "LinkedList.hh"
 #include "Util.hh"
 
+#include <list>
 #include <map>
 #include <string>
 using std::string;
@@ -36,8 +36,8 @@ using std::string;
 class BColor;
 class Widget;
 
-typedef std::map<Window,Widget*> Mapper;
-
+typedef std::map<Window,Widget*> WidgetMapper;
+typedef std::list<Widget*> WidgetList;
 
 class Widget
 {
@@ -115,7 +115,7 @@ private:
 
   Window win;
   Widget *_parent;
-  LinkedList<Widget> _children;
+  WidgetList _children;
   Type _type;
   Rect _rect;
   string _title;
@@ -126,7 +126,7 @@ private:
   int _screen;
 
   friend class BaseDisplay;
-  static Mapper mapper;
+  static WidgetMapper mapper;
 };
 
 #endif // WIDGET_HH

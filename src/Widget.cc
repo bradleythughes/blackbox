@@ -31,7 +31,7 @@
 
 #include <stdio.h>
 
-Mapper Widget::mapper;
+WidgetMapper Widget::mapper;
 
 
 Widget::Widget(int s, Type t)
@@ -58,8 +58,15 @@ Widget::~Widget()
   if (isVisible())
     hide();
   // delete children
-  while (_children.first())
-    delete _children.first();
+  WidgetList::iterator it = _children.begin();
+  while (it != _children.end()) {
+    Widget *child = *it;
+    // we don't remove the child from the list, the widget destructor
+    // does this for us... we also don't set the item to zero, since
+    // this will cause removeChild to fail...
+    ++it;
+    delete child;
+  }
   if (parent())
     parent()->removeChild(this);
   mapper.erase(win);
@@ -68,62 +75,70 @@ Widget::~Widget()
 
 void Widget::create()
 {
-    BaseDisplay *display = BaseDisplay::instance();
-    ScreenInfo *screeninfo = display->screenInfo(screenNumber());
-    Window p = parent() ? parent()->win : screeninfo->rootWindow();
+  BaseDisplay *display = BaseDisplay::instance();
+  ScreenInfo *screeninfo = display->screenInfo(screenNumber());
+  Window p = parent() ? parent()->win : screeninfo->rootWindow();
 
-    // set the initial geometry
-    _rect.setRect(screeninfo->width() / 4, screeninfo->height() / 4,
-		   screeninfo->width() / 2, screeninfo->height() / 2);
+  // set the initial geometry
+  _rect.setRect(screeninfo->width() / 4, screeninfo->height() / 4,
+                screeninfo->width() / 2, screeninfo->height() / 2);
 
-    // create the window
-    XSetWindowAttributes attrib;
-    unsigned long mask = CWBackPixmap | CWColormap |
-			 CWOverrideRedirect | CWEventMask;
-    attrib.background_pixmap = None;
-    attrib.colormap = screeninfo->colormap();
+  // create the window
+  XSetWindowAttributes attrib;
+  unsigned long mask = CWBackPixmap | CWColormap |
+                       CWOverrideRedirect | CWEventMask;
+  attrib.background_pixmap = None;
+  attrib.colormap = screeninfo->colormap();
+  attrib.override_redirect = False;
+  attrib.event_mask = ButtonPressMask | ButtonReleaseMask |
+                      ButtonMotionMask |
+                      KeyPressMask | KeyReleaseMask |
+                      EnterWindowMask | LeaveWindowMask |
+                      FocusChangeMask |
+                      ExposureMask |
+                      StructureNotifyMask;
+
+  // handle the different window type parameters
+  switch(type()) {
+  case Normal:
     attrib.override_redirect = False;
-    attrib.event_mask = ButtonPressMask | ButtonReleaseMask |
-			ButtonMotionMask |
-			KeyPressMask | KeyReleaseMask |
-			EnterWindowMask | LeaveWindowMask |
-			FocusChangeMask |
-			ExposureMask |
-			StructureNotifyMask;
+    break;
 
-    // handle the different window type parameters
-    switch(type()) {
-    case Normal:
-	attrib.override_redirect = False;
-	break;
+  case Popup:
+    attrib.override_redirect = True;
+    attrib.event_mask |= PointerMotionMask;
+    break;
 
-    case Popup:
-	attrib.override_redirect = True;
-	attrib.event_mask |= PointerMotionMask;
-	break;
+  case OverrideRedirect:
+    attrib.override_redirect = True;
+    break;
+  }
 
-    case OverrideRedirect:
-	attrib.override_redirect = True;
-	break;
-    }
+  win = XCreateWindow(*display, p, x(), y(), width(), height(), 0,
+                      screeninfo->depth(), InputOutput,
+                      screeninfo->visual(), mask, &attrib);
 
-    win = XCreateWindow(*display, p, x(), y(), width(), height(), 0,
-			 screeninfo->depth(), InputOutput,
-			 screeninfo->visual(), mask, &attrib);
+  setTitle("Untitled");
 
-    setTitle("Untitled");
-
-    mapper.insert(std::pair<Window,Widget*>(win, this));
+  mapper.insert(std::pair<Window,Widget*>(win, this));
 }
 
 void Widget::insertChild(Widget *child)
 {
-    _children.insert(child);
+  _children.insert(_children.end(), child);
 }
 
 void Widget::removeChild(Widget *child)
 {
-    _children.remove(child);
+  WidgetList::iterator it = _children.begin();
+  while (it != _children.end()) {
+    if ((*it) == child)
+      break;
+    ++it;
+  }
+
+  assert(it != _children.end());
+  _children.erase(it);
 }
 
 void Widget::move(int x, int y)
@@ -168,10 +183,10 @@ void Widget::show()
 {
   if (isVisible())
     return;
-  LinkedListIterator<Widget> it(&_children);
-  while (it.current()) {
-    it.current()->show();
-    it++;
+  WidgetList::iterator it = _children.begin();
+  while (it != _children.end()) {
+    (*it)->show();
+    ++it;
   }
   if (type() == Popup) {
     XMapRaised(*BaseDisplay::instance(), win);
@@ -202,6 +217,12 @@ void Widget::setFocus()
 void Widget::setTitle(const string &t)
 {
     _title = t;
+    if (! parent() && _type == Normal) {
+      // we have no parent and are a normal window. this means we
+      // are toplevel window, so we should set the WM_NAME property
+      // so that the window manager knows who we are
+      fprintf(stderr, "Widget::setTitle: TODO - set WM_NAME\n");
+    }
 }
 
 bool Widget::grabMouse()
