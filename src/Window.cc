@@ -177,7 +177,7 @@ BlackboxWindow::BlackboxWindow(Blackbox *b, Window w, BScreen *s) {
 
   // adjust the window decorations based on transience and window sizes
   if (flags.transient)
-    decorations.maximize = functions.maximize = False;
+    decorations.maximize = decorations.handle = functions.maximize = False;
 
   if ((client.normal_hint_flags & PMinSize) &&
       (client.normal_hint_flags & PMaxSize) &&
@@ -2888,10 +2888,7 @@ void BlackboxWindow::upsize(void)
 {
     if (decorations.border) {
 	frame.border_w = screen->style()->borderWidth();
-	if (!flags.transient)
-	    frame.mwm_border_w = screen->style()->frameWidth();
-	else
-	    frame.mwm_border_w = 0;
+        frame.mwm_border_w = screen->style()->frameWidth();
     } else {
 	frame.mwm_border_w = frame.border_w = 0;
     }
