@@ -770,7 +770,7 @@ ScreenInfo::ScreenInfo(BaseDisplay *d, int num)
   }
 
   ostringstream out;
-  string displaystring = DisplayString(_display->x11Display());
+  displaystring = DisplayString(_display->x11Display());
   unsigned int dot = displaystring.rfind('.');
   if (dot != string::npos)
     displaystring.resize(dot);
