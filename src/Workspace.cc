@@ -364,6 +364,13 @@ void Workspace::placeWindow(BlackboxWindow *win) {
   switch (screen->windowPlacement()) {
   case BScreen::SmartRow:
     {
+      // when smart placing windows bigger than the available area, constrain them
+      // to the size of the available area
+      if (width >= avail.width())
+        width = avail.width() - 1;
+      if (height >= avail.height())
+        height = avail.height() - 1;
+
       int overlap = 0, min = INT_MAX, possible = 0;
 
       do {
@@ -432,15 +439,19 @@ void Workspace::placeWindow(BlackboxWindow *win) {
 
           y = possible;
         }
-
-        if (width > avail.width() || height > avail.height())
-          break;
       } while (overlap != 0 && overlap != -1);
       break;
     }
 
   case BScreen::SmartColumn:
     {
+      // when smart placing windows bigger than the available area, constrain them
+      // to the size of the available area
+      if (width >= avail.width())
+        width = avail.width() - 1;
+      if (height >= avail.height())
+        height = avail.height() - 1;
+
       int overlap = 0, min = INT_MAX, possible = 0;
 
       do {
@@ -509,9 +520,6 @@ void Workspace::placeWindow(BlackboxWindow *win) {
 
           x = possible;
         }
-
-        if (width > avail.width() || height > avail.height())
-          break;
       } while (overlap != 0 && overlap != -1);
       break;
     }
