@@ -1354,7 +1354,10 @@ Bool BlackboxWindow::setInputFocus(void) {
     if (focus_mode == F_LocallyActive || focus_mode == F_Passive) {
       XSetInputFocus(*blackbox, client.window, RevertToPointerRoot, CurrentTime);
     } else {
-      blackbox->setFocusedWindow(0);
+      // we could set the focus to none, since the window doesn't accept focus,
+      // but we shouldn't set focus to nothing since this would surely make
+      // someone angry
+      return False;
     }
 
     if (flags.send_focus_message) {
