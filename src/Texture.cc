@@ -52,6 +52,37 @@ BTexture::~BTexture()
 {
 }
 
+void BTexture::setColor(const BColor &cc)
+{
+  c = cc;
+
+  unsigned char r, g, b, rr, gg, bb;
+
+  // calculate the light color
+  r = c.red();
+  g = c.green();
+  b = c.blue();
+  rr = r + (r >> 1);
+  gg = g + (g >> 1);
+  bb = b + (b >> 1);
+  if (rr < r) rr = ~0;
+  if (gg < g) gg = ~0;
+  if (bb < b) bb = ~0;
+  lc = BColor(rr, gg, bb, color().screen());
+
+  // calculate the shadow color
+  r = c.red();
+  g = c.green();
+  b = c.blue();
+  rr = (r >> 2) + (r >> 1);
+  gg = (g >> 2) + (g >> 1);
+  bb = (b >> 2) + (b >> 1);
+  if (rr > r) rr = 0;
+  if (gg > g) gg = 0;
+  if (bb > b) bb = 0;
+  sc = BColor(rr, gg, bb, color().screen());
+}
+
 void BTexture::setDescription( const string &d )
 {
   string tmp( d.length(), '\0' );

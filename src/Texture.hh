@@ -67,43 +67,39 @@ using std::string;
 
 class BTexture {
 public:
-  BTexture( int scr = -1 );
-  BTexture( const string &, int scr = -1 );
+  BTexture(int scr = -1);
+  BTexture(const string &, int scr = -1);
   ~BTexture();
 
+  void setColor(const BColor &);
+  void setColorTo(const BColor &cc) { ct = cc; }
+
   const BColor &color(void) const { return c; }
-  void setColor( const BColor &cc ) { c = cc; }
-
   const BColor &colorTo(void) const { return ct; }
-  void setColorTo( const BColor &cc ) { ct = cc; }
-
   const BColor &lightColor(void) const { return lc; }
-  void setLightColor( const BColor &cc ) { lc = cc; }
-
   const BColor &shadowColor(void) const { return sc; }
-  void setShadowColor( const BColor &cc ) { sc = cc; }
 
   unsigned long texture(void) const { return t; }
   void setTexture(unsigned long tt) { t = tt; }
   void addTexture(unsigned long tt) { t |= tt; }
 
-  BTexture &operator=( const BTexture &tt );
-  bool operator==( const BTexture &tt )
+  BTexture &operator=(const BTexture &tt);
+  bool operator==(const BTexture &tt)
   {
-    return ( c == tt.c  && ct == tt.ct && lc == tt.lc && sc == tt.sc && t == tt.t );
+    return (c == tt.c  && ct == tt.ct && lc == tt.lc && sc == tt.sc && t == tt.t);
   }
-  bool operator!=( const BTexture &tt )
+  bool operator!=(const BTexture &tt)
   {
-    return ( ! operator==( tt ) );
+    return (! operator==(tt));
   }
 
   int screen() const { return scrn; }
-  void setScreen( int scr );
+  void setScreen(int scr);
 
   const string &description() const { return descr; }
-  void setDescription( const string & );
+  void setDescription(const string &);
 
-  Pixmap render( const Size &, Pixmap old = 0 );
+  Pixmap render(const Size &, Pixmap old = 0);
 
 private:
   BColor c, ct, lc, sc;

@@ -439,32 +439,22 @@ BTexture BStyle::readDatabaseTexture(const string &rname, const string &rclass,
 
   if (texture.texture() & BImage_Solid) {
     texture.setColor(readDatabaseColor(rname + ".color",
-                                         rclass + ".Color",
-                                         default_color));
+                                       rclass + ".Color",
+                                       default_color));
 
 #ifdef    INTERLACE
     texture.setColorTo(readDatabaseColor(rname + ".colorTo",
-                                           rclass + ".ColorTo",
-                                           default_color));
+                                         rclass + ".ColorTo",
+                                         default_color));
 #endif // INTERLACE
 
-    unsigned char r, g, b;
-    r = texture.color().red() | (texture.color().red() >> 1);
-    g = texture.color().green() | (texture.color().green() >> 1);
-    b = texture.color().blue() | (texture.color().blue() >> 1);
-    texture.setLightColor(BColor(r, g, b, screen));
-
-    r = (texture.color().red() >> 2) | (texture.color().red() >> 1);
-    g = (texture.color().green() >> 2) | (texture.color().green() >> 1);
-    b = (texture.color().blue() >> 2) | (texture.color().blue() >> 1);
-    texture.setShadowColor(BColor(r, g, b, screen));
   } else if (texture.texture() & BImage_Gradient) {
     texture.setColor(readDatabaseColor(rname + ".color",
-                                         rclass + ".Color",
-                                         default_color));
+                                       rclass + ".Color",
+                                       default_color));
     texture.setColorTo(readDatabaseColor(rname + ".colorTo",
-                                           rclass + ".ColorTo",
-                                           default_color));
+                                         rclass + ".ColorTo",
+                                         default_color));
   }
 
   texture.setScreen(screen);
