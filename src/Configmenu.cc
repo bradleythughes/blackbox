@@ -131,18 +131,8 @@ protected:
     case 1: // click to focus
       screen->saveSloppyFocus(False);
       screen->saveAutoRaise(False);
-
-      if (! Blackbox::instance()->getFocusedWindow())
-        XSetInputFocus( *BaseDisplay::instance(),
-                        screen->getToolbar()->getWindowID(),
-                        RevertToParent, CurrentTime);
-      else
-        XSetInputFocus( *BaseDisplay::instance(),
-                        Blackbox::instance()->getFocusedWindow()->getClientWindow(),
-                        RevertToParent, CurrentTime);
       hideAll();
       screen->reconfigure();
-
       break;
 
     case 2: // sloppy focus

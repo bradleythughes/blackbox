@@ -113,15 +113,10 @@ int Workspace::removeWindow(BlackboxWindow *w)
       BlackboxWindow *bw = w->getTransientFor();
       if (bw && bw->isVisible())
         bw->setInputFocus();
-    } else if (screen->isSloppyFocus()) {
-      Blackbox::instance()->setFocusedWindow((BlackboxWindow *) 0);
     } else {
       BlackboxWindow *top = stackingList->first();
       if (! top || ! top->setInputFocus()) {
 	Blackbox::instance()->setFocusedWindow((BlackboxWindow *) 0);
-	XSetInputFocus(*BaseDisplay::instance(),
-		       screen->getToolbar()->getWindowID(),
-		       RevertToParent, CurrentTime);
       }
     }
   }

@@ -1350,14 +1350,11 @@ Bool BlackboxWindow::setInputFocus(void) {
   if (client.transient && flags.modal) {
     ret = client.transient->setInputFocus();
   } else if (! flags.focused) {
-    if (focus_mode == F_LocallyActive || focus_mode == F_Passive)
-      XSetInputFocus(*blackbox, client.window,
-		     RevertToPointerRoot, CurrentTime);
-    else
-      XSetInputFocus(*blackbox, screen->screenInfo()->rootWindow(),
-		     RevertToNone, CurrentTime);
-
-    blackbox->setFocusedWindow(this);
+    if (focus_mode == F_LocallyActive || focus_mode == F_Passive) {
+      XSetInputFocus(*blackbox, client.window, RevertToPointerRoot, CurrentTime);
+    } else {
+      blackbox->setFocusedWindow(0);
+    }
 
     if (flags.send_focus_message) {
       XEvent ce;
@@ -3025,6 +3022,17 @@ void BlackboxWindow::left_fixsize(int *gx, int *gy) {
                    (frame.border_w * 2);
   frame.resize_h = dy + frame.y_border + frame.handle_h +
                    (frame.mwm_border_w * 2) + (frame.border_w * 3);
+}
+
+// new API functions
+void BlackboxWindow::setFocused(bool f)
+{
+  if (f == isFocused())
+    return;
+  setFocusFlag(f);
+
+  if (isFocused())
+    blackbox->setFocusedWindow(this);
 }
 
 void BlackboxWindow::raise()

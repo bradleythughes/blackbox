@@ -237,6 +237,8 @@ public:
   BlackboxWindow(Blackbox *b, Window w, BScreen *s = (BScreen *) 0);
   virtual ~BlackboxWindow(void);
 
+  void setFocused(bool);
+
   void raise();
   void lower();
   void killClient();
@@ -290,6 +292,7 @@ public:
 
   Bool validateClient(void);
   Bool setInputFocus(void);
+
 
   void setFocusFlag(Bool);
   void iconify(void);

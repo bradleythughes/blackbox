@@ -1163,7 +1163,7 @@ void Toolbar::edit(void)
 
   XSetInputFocus(*blackbox, frame.workspace_label,
                  ((screen->isSloppyFocus()) ? RevertToPointerRoot :
-                  RevertToParent),
+                  RevertToPointerRoot),
                  CurrentTime);
   XClearWindow(*blackbox, frame.workspace_label);
 
@@ -1316,7 +1316,7 @@ void Toolbar::keyPressEvent(XKeyEvent *ke) {
         blackbox->getFocusedWindow()->setInputFocus();
         blackbox->getFocusedWindow()->setFocusFlag(True);
       } else {
-        XSetInputFocus(*blackbox, PointerRoot, None, CurrentTime);
+        blackbox->setFocusedWindow(0);
       }
       // check to make sure that new_name[0] != 0... otherwise we have a null
       // workspace name which causes serious problems, especially for the

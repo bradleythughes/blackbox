@@ -102,6 +102,7 @@ private:
   LinkedList<MenuTimestamp> *menuTimestamps;
   LinkedList<BScreen> *screenList;
 
+  BScreen *screen_with_mouse;
   BlackboxWindow *focused_window, *masked_window;
   BTimer *timer;
 

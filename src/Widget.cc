@@ -196,7 +196,7 @@ void Widget::setFocus()
     if (! isVisible())
 	return;
     XSetInputFocus(*BaseDisplay::instance(), win,
-		    RevertToParent, CurrentTime);
+		    RevertToPointerRoot, CurrentTime);
 }
 
 void Widget::setTitle(const string &t)

@@ -372,10 +372,6 @@ void BScreen::initialize()
   // call this again just in case a window we found updates the Strut list
   updateAvailableArea();
 
-  if (! resource.sloppy_focus)
-    XSetInputFocus(*blackbox, toolbar->getWindowID(),
-                   RevertToParent, CurrentTime);
-
   XFlush(*blackbox);
 }
 
@@ -557,19 +553,17 @@ void BScreen::changeWorkspaceID(int id) {
     current_workspace->hideAll();
 
     workspacemenu->setItemChecked(current_workspace->getWorkspaceID() + 3,
-                                   false);
+                                  false);
 
     if (blackbox->getFocusedWindow() &&
 	blackbox->getFocusedWindow()->getScreen() == this &&
         (! blackbox->getFocusedWindow()->isStuck())) {
       current_workspace->setLastFocusedWindow(blackbox->getFocusedWindow());
-      blackbox->setFocusedWindow((BlackboxWindow *) 0);
     }
 
     current_workspace = getWorkspace(id);
 
-    workspacemenu->setItemChecked(current_workspace->getWorkspaceID() + 3,
-				   true);
+    workspacemenu->setItemChecked(current_workspace->getWorkspaceID() + 3, true);
     toolbar->redrawWorkspaceLabel(True);
 
     current_workspace->showAll();
@@ -577,6 +571,8 @@ void BScreen::changeWorkspaceID(int id) {
     if (resource.focus_last && current_workspace->getLastFocusedWindow()) {
       XSync(*blackbox, False);
       current_workspace->getLastFocusedWindow()->setInputFocus();
+    } else {
+      blackbox->setFocusedWindow(0);
     }
   }
 

@@ -168,6 +168,7 @@ Blackbox::Blackbox(int m_argc, char **m_argv, char *dpy_name, char *rc)
   resource.menu_file = resource.style_file = (char *) 0;
   resource.auto_raise_delay.tv_sec = resource.auto_raise_delay.tv_usec = 0;
 
+  screen_with_mouse = 0;
   focused_window = masked_window = (BlackboxWindow *) 0;
   masked = None;
 
@@ -209,6 +210,10 @@ Blackbox::Blackbox(int m_argc, char **m_argv, char *dpy_name, char *rc)
                  "Blackbox::Blackbox: no managable screens found, aborting.\n"));
     ::exit(3);
   }
+
+  // set the screen with mouse to the first managed screen
+  screen_with_mouse = screenList->first();
+  setFocusedWindow(0);
 
   XSynchronize(*this, False);
   XSync(*this, False);
@@ -534,6 +539,7 @@ void Blackbox::process_event(XEvent *e)
     if ((e->xcrossing.window == e->xcrossing.root) &&
         (screen = searchScreen(e->xcrossing.window))) {
       screen->getImageControl()->installRootColormap();
+      screen_with_mouse = screen;
     } else if ((win = searchWindow(e->xcrossing.window))) {
       if (win->getScreen()->isSloppyFocus() &&
           (! win->isFocused()) && (! no_focus)) {
@@ -636,16 +642,22 @@ void Blackbox::process_event(XEvent *e)
   case FocusIn: {
     if (e->xfocus.mode == NotifyUngrab || e->xfocus.detail == NotifyPointer)
       break;
-
     BlackboxWindow *win = searchWindow(e->xfocus.window);
-    if (win && ! win->isFocused())
-      setFocusedWindow(win);
-
+    if (win) {
+      win->setFocused(true);
+    }
     break;
   }
 
-  case FocusOut:
+  case FocusOut: {
+    if (e->xfocus.mode == NotifyGrab || e->xfocus.detail != NotifyNonlinear )
+      break;
+    BlackboxWindow *win = searchWindow(e->xfocus.window);
+    if (win) {
+      win->setFocused(false);
+    }
     break;
+  }
 
   case ClientMessage: {
     if (e->xclient.format == 32) {
@@ -1618,41 +1630,56 @@ void Blackbox::timeout(void) {
 
 void Blackbox::setFocusedWindow(BlackboxWindow *win)
 {
-    BScreen *old_screen = (BScreen *) 0, *screen = (BScreen *) 0;
-    BlackboxWindow *old_win = (BlackboxWindow *) 0;
-    Toolbar *old_tbar = (Toolbar *) 0, *tbar = (Toolbar *) 0;
-    Workspace *old_wkspc = (Workspace *) 0, *wkspc = (Workspace *) 0;
+  BScreen *old_screen = (BScreen *) 0, *screen = (BScreen *) 0;
+  BlackboxWindow *old_win = (BlackboxWindow *) 0;
+  Toolbar *old_tbar = (Toolbar *) 0, *tbar = (Toolbar *) 0;
+  Workspace *old_wkspc = (Workspace *) 0, *wkspc = (Workspace *) 0;
 
-    if (focused_window) {
-	old_win = focused_window;
-	old_screen = old_win->getScreen();
-	old_tbar = old_screen->getToolbar();
-	old_wkspc = old_screen->getWorkspace(old_win->getWorkspaceNumber());
+  if (focused_window) {
+    old_win = focused_window;
+    old_screen = old_win->getScreen();
+    old_tbar = old_screen->getToolbar();
+    old_wkspc = old_screen->getWorkspace(old_win->getWorkspaceNumber());
 
-	old_win->setFocusFlag(False);
-	old_wkspc->getMenu()->setItemChecked(old_win->getWindowNumber(), False);
-    }
+    old_win->setFocusFlag(False);
+    old_wkspc->getMenu()->setItemChecked(old_win->getWindowNumber(), False);
+  }
 
-    if (win && ! win->isIconic()) {
-	screen = win->getScreen();
-	tbar = screen->getToolbar();
-	wkspc = screen->getWorkspace(win->getWorkspaceNumber());
+  if (win && ! win->isIconic()) {
+    screen = win->getScreen();
+    tbar = screen->getToolbar();
+    wkspc = screen->getWorkspace(win->getWorkspaceNumber());
 
-	focused_window = win;
+    focused_window = win;
 
-	win->setFocusFlag(True);
-	wkspc->getMenu()->setItemChecked(win->getWindowNumber(), True);
+    win->setFocusFlag(True);
+    wkspc->getMenu()->setItemChecked(win->getWindowNumber(), True);
+  } else {
+    focused_window = (BlackboxWindow *) 0;
+    if (! old_screen) {
+      if (screen_with_mouse) {
+        // set input focus to the toolbar of the screen with mouse
+        XSetInputFocus(*blackbox, screen_with_mouse->getToolbar()->getWindowID(),
+                       RevertToPointerRoot, CurrentTime);
+      } else {
+        // set input focus to the toolbar of the first managed screen
+        XSetInputFocus(*blackbox, screenList->first()->getToolbar()->getWindowID(),
+                       RevertToPointerRoot, CurrentTime);
+      }
     } else {
-	focused_window = (BlackboxWindow *) 0;
+      // set input focus to the toolbar of the last screen
+      XSetInputFocus(*blackbox, old_screen->getToolbar()->getWindowID(),
+                     RevertToPointerRoot, CurrentTime);
     }
+  }
 
-    if (tbar)
-	tbar->redrawWindowLabel(True);
-    if (screen)
-	screen->updateNetizenWindowFocus();
+  if (tbar)
+    tbar->redrawWindowLabel(True);
+  if (screen)
+    screen->updateNetizenWindowFocus();
 
-    if (old_tbar && old_tbar != tbar)
-	old_tbar->redrawWindowLabel(True);
-    if (old_screen && old_screen != screen)
-	old_screen->updateNetizenWindowFocus();
+  if (old_tbar && old_tbar != tbar)
+    old_tbar->redrawWindowLabel(True);
+  if (old_screen && old_screen != screen)
+    old_screen->updateNetizenWindowFocus();
 }
