@@ -1,0 +1,135 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
+// Util.cc for Blackbox - an X11 Window manager
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS IN THE SOFTWARE.
+
+#ifdef    HAVE_CONFIG_H
+#  include "../config.h"
+#endif // HAVE_CONFIG_H
+
+#ifdef HAVE_STDLIB_H
+#  include <stdlib.h>
+#endif // HAVE_STDLIB_H
+
+#ifdef    TIME_WITH_SYS_TIME
+#  include <sys/time.h>
+#  include <time.h>
+#else // !TIME_WITH_SYS_TIME
+#  ifdef    HAVE_SYS_TIME_H
+#    include <sys/time.h>
+#  else // !HAVE_SYS_TIME_H
+#    include <time.h>
+#  endif // HAVE_SYS_TIME_H
+#endif // TIME_WITH_SYS_TIME
+
+#ifdef HAVE_UNISTD_H
+#  include <sys/types.h>
+#  include <unistd.h>
+#endif // HAVE_UNISTD_H
+
+#ifdef HAVE_STDIO_H
+#  include <stdio.h>
+#endif // HAVE_STDIO_H
+
+#if defined(HAVE_PROCESS_H) && defined(__EMX__)
+#  include <process.h>
+#endif //   HAVE_PROCESS_H             __EMX__
+
+#include <string> // C++ string
+using std::string;
+
+#include "Util.hh"
+
+char* expandTilde(const char* s) {
+  if (s[0] != '~') return bstrdup(s);
+
+  string ret = getenv("HOME");
+  char* path = strchr(s, '/');
+  ret += path;
+  return bstrdup(ret.c_str());
+}
+
+char* bstrdup(const char *s) {
+  const int l = strlen(s) + 1;
+  char *n = new char[l];
+  strcpy(n, s);
+  return n;
+}
+
+void bexec(const string &command, const string &displaystring)
+{
+#ifndef __EMX__
+  if (command.empty()) {
+    fprintf(stderr, "bexec: command not specified.\n");
+    return;
+  }
+
+  // setup command to execute
+  string cmd = "exec " + command;
+
+  if (! fork()) {
+    setsid();
+    // SUSv2 says that the string used in the environment should be persistent,
+    // so we have to make a copy of the data for the environment.
+    putenv(bstrdup(displaystring.c_str()));
+    execl("/bin/sh", "/bin/sh", "-c", cmd.c_str(), NULL);
+    perror("execl");
+    exit(0);
+  }
+#else //   __EMX__
+  spawnlp(P_NOWAIT, "cmd.exe", "cmd.exe", "/c", command.c_str(), NULL);
+#endif // !__EMX__
+}
+
+timeval normalizeTimeval(const timeval &tm) {
+  timeval ret = tm;
+
+  while (ret.tv_usec < 0) {
+    if (ret.tv_sec > 0) {
+      --ret.tv_sec;
+      ret.tv_usec += 1000000;
+    } else {
+      ret.tv_usec = 0;
+    }
+  }
+
+  if (ret.tv_usec >= 1000000) {
+    ret.tv_sec += ret.tv_usec / 1000000;
+    ret.tv_usec %= 1000000;
+  }
+
+  if (ret.tv_sec < 0) ret.tv_sec = 0;
+
+  return ret;
+}
+
+#ifndef   HAVE_BASENAME
+#  ifdef HAVE_STRING_H
+#    include <string.h> // C string
+#  endif // HAVE_STRING_H
+
+char *basename (const char *path) {
+  char *slash = strrchr(path, '/');
+  if (slash == NULL)
+    return path;
+  return ++slash;
+}
+#endif // HAVE_BASENAME

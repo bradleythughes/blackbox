@@ -60,7 +60,7 @@ void SendToMenu::refresh()
 {
   int i;
   clear();
-  for (i = 0; i < window->getScreen()->getCount(); i++)
+  for (i = 0; i < window->getScreen()->getWorkspaceCount(); i++)
     insert(window->getScreen()->getWorkspace(i)->getName());
   setItemChecked(window->getWorkspaceNumber(), true);
 }
@@ -70,7 +70,7 @@ void SendToMenu::itemClicked(const Item &item, int button)
   if (button > 2)
     return;
 
-  if (item.index() <= window->getScreen()->getCount()) {
+  if (item.index() <= window->getScreen()->getWorkspaceCount()) {
     if (item.index() == window->getScreen()->getCurrentWorkspaceID())
       return;
 

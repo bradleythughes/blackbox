@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Toolbar.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -25,52 +26,75 @@
 
 #include <X11/Xlib.h>
 
+#include "Screen.hh"
 #include "Basemenu.hh"
 #include "Timer.hh"
+#include "Widget.hh"
 
 // forward declaration
 class Toolbar;
+class Toolbarmenu;
+class ToolbarClock;
 
-class Toolbarmenu : public Basemenu {
-private:
-  class Placementmenu : public Basemenu {
-  private:
-    Toolbarmenu *toolbarmenu;
+class Toolbar2 : public Widget
+{
+public:
+  enum Placement { TopLeft , BottomLeft, TopCenter,
+                   BottomCenter, TopRight, BottomRight };
+  Toolbar2(BScreen *);
+  ~Toolbar2();
 
-  protected:
-    virtual void itemSelected(int, int);
+  void reconfigure();
 
-  public:
-    Placementmenu(Toolbarmenu *);
-  };
-
-  Toolbar *toolbar;
-  Placementmenu *placementmenu;
-
-  friend class Placementmenu;
-  friend class Toolbar;
-
+  void setPlacement(Placement);
+  Placement placement() const { return _placement; }
 
 protected:
-  virtual void itemSelected(int, int);
-  virtual void internal_hide(void);
+  void buttonPressEvent(XEvent *);
+  void buttonReleaseEvent(XEvent *);
+  void enterEvent(XEvent *);
+  void leaveEvent(XEvent *);
+  void exposeEvent(XEvent *);
 
-public:
-  Toolbarmenu(Toolbar *);
-  ~Toolbarmenu(void);
+private:
+  void updateLayout();
+  void updatePlacement();
+  void updatePixmap();
 
-  inline Basemenu *getPlacementmenu(void) { return placementmenu; }
+  BTimer *clock_timer, *hide_timer;
+  Pixmap pixmap, texture_pixmap;
+  Rect texture_rect;
+  Toolbarmenu *toolbarmenu;
+  NETStrut strut;
+  bool always_on_top, editing, hidden, auto_hide;
+  Placement _placement;
 
-  void reconfigure(void);
+  ToolbarClock *clock;
+
+  class HideHandler : public TimeoutHandler
+  {
+  public:
+    Toolbar *toolbar;
+    void timeout();
+  } hide_handler;
+
+  class ClockHandler : public TimeoutHandler
+  {
+  public:
+    Toolbar *toolbar;
+    void timeout();
+  } clock_handler;
+
+  friend class HideHandler;
+  friend class ClockHandler;
 };
 
 
 class Toolbar : public TimeoutHandler {
 private:
-  Bool on_top, editing, hidden, do_auto_hide;
-  Display *display;
+  bool on_top, editing, hidden, auto_hide;
 
-  struct frame {
+  struct ToolbarFrame {
     unsigned long button_pixel, pbutton_pixel;
     Pixmap base, label, wlabel, clk, button, pbutton;
     Window window, workspace_label, window_label, clock, psbutton, nsbutton,
@@ -93,63 +117,66 @@ private:
   BScreen *screen;
   BTimer *clock_timer, *hide_timer;
   Toolbarmenu *toolbarmenu;
+  NETStrut strut;
 
   char *new_workspace_name;
   size_t new_name_pos;
 
   friend class HideHandler;
   friend class Toolbarmenu;
-  friend class Toolbarmenu::Placementmenu;
 
+  Toolbar(const Toolbar&);
+  Toolbar& operator=(const Toolbar&);
 
 public:
-  Toolbar(BScreen *);
+  Toolbar(BScreen *scrn);
   virtual ~Toolbar(void);
 
-  inline Toolbarmenu *getMenu(void) { return toolbarmenu; }
+  inline const Bool isEditing(void) const { return editing; }
+  void setOnTop(bool t);
+  inline const Bool isOnTop(void) const { return on_top; }
+  inline const Bool isHidden(void) const { return hidden; }
+  inline const Bool autoHide(void) const { return auto_hide; }
+  void setAutoHide(bool h);
 
-  inline const Bool &isEditing(void) const { return editing; }
-  inline const Bool &isOnTop(void) const { return on_top; }
-  inline const Bool &isHidden(void) const { return hidden; }
-  inline const Bool &doAutoHide(void) const { return do_auto_hide; }
+  inline const Window windowID(void) const { return frame.window; }
 
-  inline const Window &getWindowID(void) const { return frame.window; }
-
-  inline const unsigned int &getWidth(void) const { return frame.width; }
-  inline const unsigned int &getHeight(void) const { return frame.height; }
+  inline const unsigned int width() const { return frame.width; }
+  inline const unsigned int height() const { return frame.height; }
   inline const unsigned int &getExposedHeight(void) const
-  { return ((do_auto_hide) ? frame.bevel_w : frame.height); }
+    { return ((auto_hide) ? frame.bevel_w : frame.height); }
   inline const int &getX(void) const
-  { return ((hidden) ? frame.x_hidden : frame.x); }
-  inline const int &getY(void) const
-  { return ((hidden) ? frame.y_hidden : frame.y); }
+    { return ((hidden) ? frame.x_hidden : frame.x); }
+  inline const int getY(void) const
+    { return ((hidden) ? frame.y_hidden : frame.y); }
 
-  void buttonPressEvent(XButtonEvent *);
-  void buttonReleaseEvent(XButtonEvent *);
-  void enterNotifyEvent(XCrossingEvent *);
-  void leaveNotifyEvent(XCrossingEvent *);
-  void exposeEvent(XExposeEvent *);
-  void keyPressEvent(XKeyEvent *);
+  void buttonPressEvent(XButtonEvent *be);
+  void buttonReleaseEvent(XButtonEvent *re);
+  void enterNotifyEvent(XCrossingEvent * /*unused*/);
+  void leaveNotifyEvent(XCrossingEvent * /*unused*/);
+  void exposeEvent(XExposeEvent *ee);
+  void keyPressEvent(XKeyEvent *ke);
 
-  void redrawWindowLabel(Bool = False);
-  void redrawWorkspaceLabel(Bool = False);
-  void redrawPrevWorkspaceButton(Bool = False, Bool = False);
-  void redrawNextWorkspaceButton(Bool = False, Bool = False);
-  void redrawPrevWindowButton(Bool = False, Bool = False);
-  void redrawNextWindowButton(Bool = False, Bool = False);
+  void redrawWindowLabel(Bool redraw = False);
+  void redrawWorkspaceLabel(Bool redraw = False);
+  void redrawPrevWorkspaceButton(Bool pressed = False, Bool redraw = False);
+  void redrawNextWorkspaceButton(Bool pressed = False, Bool redraw = False);
+  void redrawPrevWindowButton(Bool preseed = False, Bool redraw = False);
+  void redrawNextWindowButton(Bool preseed = False, Bool redraw = False);
   void edit(void);
   void reconfigure(void);
 
 #ifdef    HAVE_STRFTIME
-  void checkClock(Bool = False);
+  void checkClock(Bool redraw = False);
 #else //  HAVE_STRFTIME
-  void checkClock(Bool = False, Bool = False);
+  void checkClock(Bool redraw = False, Bool date = False);
 #endif // HAVE_STRFTIME
 
   virtual void timeout(void);
 
-  enum { TopLeft = 1, BottomLeft, TopCenter,
-         BottomCenter, TopRight, BottomRight };
+  enum Placement { TopLeft = 1, BottomLeft, TopCenter,
+                   BottomCenter, TopRight, BottomRight };
+  void setPlacement(Placement);
 };
 
 

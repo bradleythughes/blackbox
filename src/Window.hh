@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Window.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -31,10 +32,13 @@
 
 #include "BaseDisplay.hh"
 #include "Timer.hh"
-#include "Windowmenu.hh"
+#include "blackbox.hh"
 
 // forward declaration
-class BlackboxWindow;
+class Windowmenu;
+class BImageControl;
+class BScreen;
+class Blackbox;
 
 #define MwmHintsFunctions     (1l << 0)
 #define MwmHintsDecorations   (1l << 1)
@@ -68,7 +72,6 @@ private:
   BImageControl *image_ctrl;
   Blackbox *blackbox;
   BScreen *screen;
-  Display *display;
   BTimer *timer;
   BlackboxAttributes blackbox_attrib;
 
@@ -79,7 +82,7 @@ private:
   unsigned long current_state;
 
   enum FocusMode { F_NoInput = 0, F_Passive,
-		   F_LocallyActive, F_GloballyActive };
+                   F_LocallyActive, F_GloballyActive };
   FocusMode focus_mode;
 
   struct _flags {
@@ -102,11 +105,11 @@ private:
   } flags;
 
   struct _client {
-    BlackboxWindow *transient_for,  // which window are we a transient for?
-      *transient;                   // which window is our transient?
-
     Window window,                  // the client's window
-      window_group;                 // the client's window group
+      window_group,                 // the client's window group
+      transient_for;                // which window are we a transient for?
+    BlackboxWindow *transient;      // which window is our transient?
+
 
     char *title, *icon_title;
     size_t title_len;               // strlen(title)
@@ -190,13 +193,16 @@ private:
 
     unsigned int width, height, title_h, label_w, label_h, handle_h,
       button_w, button_h, grip_w, grip_h, mwm_border_w, border_h, border_w,
-      bevel_w, snap_w, snap_h;
+      snap_w, snap_h;
   } frame;
 
+  BlackboxWindow(const BlackboxWindow&);
+  BlackboxWindow& operator=(const BlackboxWindow&);
+
 protected:
-  Bool getState(void);
+  const Bool getState(void);
   Window createToplevelWindow(int x, int y, unsigned int width,
-			      unsigned int height, unsigned int borderwidth);
+                              unsigned int height, unsigned int borderwidth);
   Window createChildWindow(Window parent, Cursor = None);
 
   void getWMName(void);
@@ -206,6 +212,7 @@ protected:
   void getWMHints(void);
   void getMWMHints(void);
   void getBlackboxHints(void);
+  void getTransientInfo(void);
   void setNetWMAttributes(void);
   void associateClientWindow(void);
   void decorate(void);
@@ -233,85 +240,96 @@ public:
   BlackboxWindow(Blackbox *b, Window w, BScreen *s = (BScreen *) 0);
   virtual ~BlackboxWindow(void);
 
-  inline Bool isTransient(void) const { return flags.transient; }
-  inline Bool isFocused(void) const { return flags.focused; }
-  inline Bool isVisible(void) const { return flags.visible; }
-  inline Bool isIconic(void) const { return flags.iconic; }
-  inline Bool isShaded(void) const { return flags.shaded; }
-  inline Bool isMaximized(void) const { return flags.maximized; }
-  inline Bool isStuck(void) const { return flags.stuck; }
-  inline Bool isIconifiable(void) const { return functions.iconify; }
-  inline Bool isMaximizable(void) const { return functions.maximize; }
-  inline Bool isResizable(void) const { return functions.resize; }
-  inline Bool isClosable(void) const { return functions.close; }
+  void setFocused(bool);
+  void raise();
+  void lower();
+  void killClient();
 
-  inline Bool hasTitlebar(void) const { return decorations.titlebar; }
-  inline Bool hasTransient(void) const
-  { return ((client.transient) ? True : False); }
+  inline const Bool isTransient(void) const { return flags.transient; }
+  inline const Bool isFocused(void) const { return flags.focused; }
+  inline const Bool isVisible(void) const { return flags.visible; }
+  inline const Bool isIconic(void) const { return flags.iconic; }
+  inline const Bool isShaded(void) const { return flags.shaded; }
+  inline const Bool isMaximized(void) const { return flags.maximized; }
+  inline const Bool isStuck(void) const { return flags.stuck; }
+  inline const Bool isIconifiable(void) const { return functions.iconify; }
+  inline const Bool isMaximizable(void) const { return functions.maximize; }
+  inline const Bool isResizable(void) const { return functions.resize; }
+  inline const bool isClosable(void) const { return functions.close; }
+
+  inline const bool hasTitlebar(void) const { return decorations.titlebar; }
+  inline const bool hasTransient(void) const
+    { return ((client.transient) ? True : False); }
 
   inline BlackboxWindow *getTransient(void) { return client.transient; }
-  inline BlackboxWindow *getTransientFor(void) { return client.transient_for; }
+  inline BlackboxWindow *getTransientFor(void)
+  { return blackbox->searchWindow(client.transient_for); }
 
   inline BScreen *getScreen(void) { return screen; }
 
-  inline const Window &getFrameWindow(void) const { return frame.window; }
-  inline const Window &getClientWindow(void) const { return client.window; }
+  inline const Window getFrameWindow(void) const { return frame.window; }
+  inline const Window getClientWindow(void) const { return client.window; }
 
   inline Windowmenu * getWindowmenu(void) { return windowmenu; }
 
   inline char **getTitle(void) { return &client.title; }
   inline char **getIconTitle(void) { return &client.icon_title; }
-  inline const int &getXFrame(void) const { return frame.x; }
-  inline const int &getYFrame(void) const { return frame.y; }
-  inline const int &getXClient(void) const { return client.x; }
-  inline const int &getYClient(void) const { return client.y; }
-  inline const int &getWorkspaceNumber(void) const { return workspace_number; }
-  inline const int &getWindowNumber(void) const { return window_number; }
+  inline const int getXFrame(void) const { return frame.x; }
+  inline const int getYFrame(void) const { return frame.y; }
+  inline const int getXClient(void) const { return client.x; }
+  inline const int getYClient(void) const { return client.y; }
+  inline const int getWorkspaceNumber(void) const { return workspace_number; }
+  inline const int getWindowNumber(void) const { return window_number; }
 
-  inline const unsigned int &getWidth(void) const { return frame.width; }
-  inline const unsigned int &getHeight(void) const { return frame.height; }
-  inline const unsigned int &getClientHeight(void) const
-  { return client.height; }
-  inline const unsigned int &getClientWidth(void) const
-  { return client.width; }
-  inline const unsigned int &getTitleHeight(void) const
-  { return frame.title_h; }
+  inline const unsigned int getWidth(void) const { return frame.width; }
+  inline const unsigned int getHeight(void) const { return frame.height; }
+  inline const unsigned int getClientHeight(void) const
+    { return client.height; }
+  inline const unsigned int getClientWidth(void) const
+    { return client.width; }
+  inline const unsigned int getTitleHeight(void) const
+    { return frame.title_h; }
 
-  inline void setWindowNumber(int n) { window_number = n; }
-  
+  void setWindowNumber(int n) { window_number = n; }
+
   Bool validateClient(void);
   Bool setInputFocus(void);
 
   void setFocusFlag(Bool);
   void iconify(void);
   void deiconify(Bool reassoc = True, Bool raise = True);
+  void show(void);
   void close(void);
   void withdraw(void);
   void maximize(unsigned int button);
+  void remaximize(void);
   void shade(void);
   void stick(void);
   void unstick(void);
   void reconfigure(void);
-  void installColormap(Bool);
+  void updateFocusModel(void);
+  void installColormap(Bool install);
   void restore(void);
   void configure(int dx, int dy, unsigned int dw, unsigned int dh);
   void setWorkspace(int n);
-  void changeBlackboxHints(BlackboxHints *);
+  void changeBlackboxHints(BlackboxHints *net);
   void restoreAttributes(void);
 
-  void buttonPressEvent(XButtonEvent *);
-  void buttonReleaseEvent(XButtonEvent *);
-  void motionNotifyEvent(XMotionEvent *);
-  void destroyNotifyEvent(XDestroyWindowEvent *);
-  void mapRequestEvent(XMapRequestEvent *);
-  void mapNotifyEvent(XMapEvent *);
-  void unmapNotifyEvent(XUnmapEvent *);
-  void propertyNotifyEvent(Atom);
-  void exposeEvent(XExposeEvent *);
-  void configureRequestEvent(XConfigureRequestEvent *);
+  void buttonPressEvent(XButtonEvent *be);
+  void buttonReleaseEvent(XButtonEvent *re);
+  void motionNotifyEvent(XMotionEvent *me);
+  void destroyNotifyEvent(XDestroyWindowEvent *de);
+  void mapRequestEvent(XMapRequestEvent *mre);
+  void mapNotifyEvent(XMapEvent *ne);
+  void unmapNotifyEvent(XUnmapEvent *ue);
+  void reparentNotifyEvent(XReparentEvent *re);
+  void propertyNotifyEvent(Atom atom);
+  void exposeEvent(XExposeEvent *ee);
+  void configureRequestEvent(XConfigureRequestEvent *cr);
 
 #ifdef    SHAPE
-  void shapeEvent(XShapeEvent *);
+  void configureShape(void);
+  void shapeEvent(XShapeEvent * /*unused*/);
 #endif // SHAPE
 
   virtual void timeout(void);

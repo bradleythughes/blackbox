@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // i18n.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -20,17 +21,12 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-// stupid macros needed to access some functions in version 2 of the GNU C
-// library
-#ifndef   _GNU_SOURCE
-#define   _GNU_SOURCE
-#endif // _GNU_SOURCE
-
 #ifdef    HAVE_CONFIG_H
 #  include "../config.h"
 #endif // HAVE_CONFIG_H
 
 #include "i18n.hh"
+#include "Util.hh"
 
 #include <X11/Xlocale.h>
 
@@ -43,20 +39,6 @@
 #ifdef    HAVE_LOCALE_H
 #  include <locale.h>
 #endif // HAVE_LOCALE_H
-
-// the rest of bb source uses True and False from X, so we continue that
-#define True true
-#define False false
-
-static I18n static_i18n;
-I18n *i18n;
-
-void NLSInit(const char *catalog) {
-  i18n = &static_i18n;
-
-  i18n->openCatalog(catalog);
-}
-
 
 I18n::I18n(void) {
   mb = False;
@@ -123,8 +105,7 @@ void I18n::openCatalog(const char *catalog) {
 #endif // HAVE_CATOPEN
 }
 
-
-const char *I18n::getMessage(int set, int msg, const char *msgString) const {
+const char* I18n::operator()(int set, int msg, const char *msgString) const {
 #if   defined(NLS) && defined(HAVE_CATGETS)
   if (catalog_fd != (nl_catd) -1)
     return (const char *) catgets(catalog_fd, set, msg, msgString);
@@ -132,3 +113,6 @@ const char *I18n::getMessage(int set, int msg, const char *msgString) const {
 #endif
     return msgString;
 }
+
+// Global I18n object
+I18n i18n;

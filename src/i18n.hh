@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // i18n.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -23,11 +24,6 @@
 #ifndef   __i18n_h
 #define   __i18n_h
 
-// always include this just for the #defines
-// this keeps the calls to i18n->getMessage clean, otherwise we have to
-// add ifdefs to every call to getMessage
-#include "../nls/blackbox-nls.hh"
-
 #ifdef    HAVE_LOCALE_H
 #  include <locale.h>
 #endif // HAVE_LOCALE_H
@@ -38,29 +34,30 @@ extern "C" {
 }
 #endif // HAVE_NL_TYPES_H
 
+// always include this just for the #defines
+// this keeps the calls to i18n->getMessage clean, otherwise we have to
+// add ifdefs to every call to getMessage
+#include "../nls/blackbox-nls.hh"
 
 class I18n {
 private:
   char *locale, *catalog_filename;
   bool mb;
+
 #ifdef HAVE_NL_TYPES_H
   nl_catd catalog_fd;
-#endif
+#endif // HAVE_NL_TYPES_H
 
 public:
   I18n(void);
   ~I18n(void);
 
-  inline bool multibyte(void) const { return mb; }
+  inline const bool multibyte(void) const { return mb; }
 
-  const char *getMessage(int set, int msg, const char *msgString) const;
+  const char *operator()(int set, int msg, const char *msgString) const;
   void openCatalog(const char *catalog);
 };
 
-
-extern I18n *i18n;
-extern void NLSInit(const char *);
-
-
+extern I18n i18n;
 
 #endif // __i18n_h

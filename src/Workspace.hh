@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Workspace.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -25,7 +26,8 @@
 
 #include <X11/Xlib.h>
 
-#include "LinkedList.hh"
+#include <list>
+#include <string>
 
 class BScreen;
 class Clientmenu;
@@ -38,53 +40,54 @@ private:
   BlackboxWindow *lastfocus;
   Clientmenu *clientmenu;
 
-  LinkedList<BlackboxWindow> *stackingList, *windowList;
+  typedef std::list<BlackboxWindow*> BlackboxWindowList;
+  BlackboxWindowList stackingList, windowList;
 
-  char *name;
+  Workspace(const Workspace&);
+  Workspace& operator=(const Workspace&);
+  std::string name;
   int id, cascade_x, cascade_y;
 
-
 protected:
-  void placeWindow(BlackboxWindow *);
-
+  void placeWindow(BlackboxWindow *win);
 
 public:
-  Workspace(BScreen *, int = 0);
+  Workspace(BScreen *scrn, unsigned int i = 0);
   ~Workspace(void);
 
-  inline BScreen *getScreen(void) { return screen; }
+  inline BScreen *getScreen(void) const { return screen; }
 
-  inline BlackboxWindow *getLastFocusedWindow(void) { return lastfocus; }
-  
-  inline Clientmenu *getMenu(void) { return clientmenu; }
+  inline BlackboxWindow *getLastFocusedWindow(void) const { return lastfocus; }
 
-  inline const char *getName(void) const { return name; }
+  inline Clientmenu *getMenu(void) const { return clientmenu; }
 
-  inline const int &getWorkspaceID(void) const { return id; }
-  
+  inline const char *getName(void) const { return name.c_str(); }
+
+  inline const unsigned int getWorkspaceID(void) const { return id; }
+
   inline void setLastFocusedWindow(BlackboxWindow *w) { lastfocus = w; }
 
-  BlackboxWindow *getWindow(int);
+  BlackboxWindow *getWindow(unsigned int index) const;
 
-  Bool isCurrent(void);
-  Bool isLastWindow(BlackboxWindow *);
-  
-  const int addWindow(BlackboxWindow *, Bool = False);
-  const int removeWindow(BlackboxWindow *);
-  const int getCount(void);
+  Bool isCurrent(void) const;
+  Bool isLastWindow(const BlackboxWindow* w) const;
+
+  const int addWindow(BlackboxWindow *w, Bool place = False);
+  const int removeWindow(BlackboxWindow *w);
+  void changeWindow(BlackboxWindow *window);
+  inline const unsigned int getCount(void) const { return windowList.size(); }
 
   void showAll(void);
   void hideAll(void);
   void removeAll(void);
-  void raiseWindow(BlackboxWindow *);
-  void lowerWindow(BlackboxWindow *);
-  void reconfigure();
-  void update();
+  void raiseWindow(BlackboxWindow *w);
+  void lowerWindow(BlackboxWindow *w);
+  void reconfigure(void);
+  void updateFocusModel(void);
+  void update(void);
   void setCurrent(void);
-  void setName(char *);
+  void setName(const char* new_name);
   void shutdown(void);
 };
 
-
 #endif // __Workspace_hh
-

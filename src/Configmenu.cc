@@ -129,15 +129,11 @@ protected:
     BScreen *screen = Blackbox::instance()->screen(screenNumber());
     switch (item.function()) {
     case 1: // click to focus
-      screen->saveSloppyFocus(False);
-      screen->saveAutoRaise(False);
-      hideAll();
-      screen->reconfigure();
+      screen->toggleFocusModel(BScreen::ClickToFocus);
       break;
 
     case 2: // sloppy focus
-      screen->saveSloppyFocus(True);
-      screen->reconfigure();
+      screen->toggleFocusModel(BScreen::SloppyFocus);
       break;
 
     case 3: // auto raise with sloppy focus

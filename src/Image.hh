@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Image.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -26,95 +27,21 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
-#include "LinkedList.hh"
+#include <list>
+#include <vector>
+
+#include "BaseDisplay.hh"
+#include "Color.hh"
 #include "Timer.hh"
 
-class ScreenInfo;
-class BImage;
+class BTexture;
 class BImageControl;
-
-
-// bevel options
-#define BImage_Flat		(1l<<1)
-#define BImage_Sunken		(1l<<2)
-#define BImage_Raised		(1l<<3)
-
-// textures
-#define BImage_Solid		(1l<<4)
-#define BImage_Gradient		(1l<<5)
-
-// gradients
-#define BImage_Horizontal	(1l<<6)
-#define BImage_Vertical		(1l<<7)
-#define BImage_Diagonal		(1l<<8)
-#define BImage_CrossDiagonal	(1l<<9)
-#define BImage_Rectangle	(1l<<10)
-#define BImage_Pyramid		(1l<<11)
-#define BImage_PipeCross	(1l<<12)
-#define BImage_Elliptic		(1l<<13)
-
-// bevel types
-#define BImage_Bevel1		(1l<<14)
-#define BImage_Bevel2		(1l<<15)
-
-// inverted image
-#define BImage_Invert		(1l<<16)
-
-// parent relative image
-#define BImage_ParentRelative   (1l<<17)
-
-#ifdef    INTERLACE
-// fake interlaced image
-#  define BImage_Interlaced	(1l<<18)
-#endif // INTERLACE
-
-class BColor {
-private:
-  int allocated;
-  unsigned char red, green, blue;
-  unsigned long pixel;
-
-public:
-  BColor(char r = 0, char g = 0, char b = 0)
-    { red = r; green = g; blue = b; pixel = 0; allocated = 0; }
-
-  inline const int &isAllocated(void) const { return allocated; }
-
-  inline const unsigned char &getRed(void) const { return red; }
-  inline const unsigned char &getGreen(void) const { return green; }
-  inline const unsigned char &getBlue(void) const { return blue; }
-
-  inline const unsigned long &getPixel(void) const { return pixel; }
-
-  inline void setAllocated(int a) { allocated = a; }
-  inline void setRGB(char r, char g, char b) { red = r; green = g; blue = b; }
-  inline void setPixel(unsigned long p) { pixel = p; }
-};
-
-
-class BTexture {
-private:
-  BColor color, colorTo, hiColor, loColor;
-  unsigned long texture;
-
-public:
-  BTexture(void) { texture = 0; }
-
-  inline BColor *getColor(void) { return &color; }
-  inline BColor *getColorTo(void) { return &colorTo; }
-  inline BColor *getHiColor(void) { return &hiColor; }
-  inline BColor *getLoColor(void) { return &loColor; }
-
-  inline const unsigned long &getTexture(void) const { return texture; }
-
-  inline void setTexture(unsigned long t) { texture = t; }
-  inline void addTexture(unsigned long t) { texture |= t; }
-};
-
 
 class BImage {
 private:
-  BImageControl *control;
+  unsigned int width, height;
+  unsigned int screen_number;
+  unsigned int depth;
 
 #ifdef    INTERLACE
   Bool interlaced;
@@ -122,12 +49,20 @@ private:
 
   XColor *colors;
 
-  BColor *from, *to;
+  typedef std::vector<unsigned int> GradientTable;
+  static GradientTable xtable, ytable;
+
+  BImageControl *control;
   int red_offset, green_offset, blue_offset, red_bits, green_bits, blue_bits,
     ncolors, cpc, cpccpc;
-  unsigned char *red, *green, *blue, *red_table, *green_table, *blue_table;
-  unsigned int width, height, *xtable, *ytable;
+  unsigned char *red, *green, *blue;
 
+  void TrueColorDither(unsigned int bit_depth, int bytes_per_line,
+		       unsigned char *pixel_data);
+  void PseudoColorDither(int bytes_per_line, unsigned char *pixel_data);
+#ifdef ORDEREDPSEUDO
+  void OrderedPseudoColorDither(int bytes_per_line, unsigned char *pixel_data);
+#endif
 
 protected:
   Pixmap renderPixmap(void);
@@ -137,105 +72,84 @@ protected:
   void invert(void);
   void bevel1(void);
   void bevel2(void);
-  void dgradient(void);
-  void egradient(void);
-  void hgradient(void);
-  void pgradient(void);
-  void rgradient(void);
-  void vgradient(void);
-  void cdgradient(void);
-  void pcgradient(void);
-
+  void dgradient(const BColor &from, const BColor &to);
+  void egradient(const BColor &from, const BColor &to);
+  void hgradient(const BColor &from, const BColor &to);
+  void pgradient(const BColor &from, const BColor &to);
+  void rgradient(const BColor &from, const BColor &to);
+  void vgradient(const BColor &from, const BColor &to);
+  void cdgradient(const BColor &from, const BColor &to);
+  void pcgradient(const BColor &from, const BColor &to);
 
 public:
-  BImage(BImageControl *, unsigned int, unsigned int);
+  BImage(unsigned int w, unsigned int h, unsigned int s);
   ~BImage(void);
 
-  Pixmap render(BTexture *);
-  Pixmap render_solid(BTexture *);
-  Pixmap render_gradient(BTexture *);
+  Pixmap render(const BTexture &texture);
+  Pixmap render_solid(const BTexture &texture);
+  Pixmap render_gradient(const BTexture &texture);
 };
 
 
 class BImageControl : public TimeoutHandler {
+public:
+  BImageControl(unsigned int screen_num, Bool _dither= False,
+                int _cpc = 4, unsigned long cache_timeout = 300000l,
+                unsigned long cmax = 200l);
+  virtual ~BImageControl(void);
+
+  inline const unsigned int screenNumber() const { return screen_number; }
+
+  void setDither(Bool d) { dither = d; }
+  inline const Bool doDither(void) const { return dither; }
+
+  void setColorsPerChannel(unsigned int cpc);
+  inline const unsigned int getColorsPerChannel(void) const
+  { return colors_per_channel; }
+
+  Pixmap renderImage(unsigned int width, unsigned int height,
+                     const BTexture &texture);
+  void removeImage(Pixmap pixmap);
+
+  void colorTables(int *roff, int *goff, int *boff,
+                   int *rbit, int *gbit, int *bbit);
+
+  void getXColorTable(XColor **c, int *n);
+
+  virtual void timeout(void);
+
+  typedef std::vector<unsigned char> ColorTable;
+  ColorTable red_color_table, green_color_table, blue_color_table;
+
+protected:
+  Pixmap searchCache(unsigned int width, unsigned int height,
+                     unsigned long texture,
+                     const BColor &c1, const BColor &c2);
+
 private:
+  unsigned int screen_number;
   Bool dither;
-  BaseDisplay *basedisplay;
-  ScreenInfo *screeninfo;
-#ifdef    TIMEDCACHE
-  BTimer *timer;
-#endif // TIMEDCACHE
+  unsigned int colors_per_channel;
+  unsigned long cache_max;
 
-  Colormap colormap;
-
-  Window window;
   XColor *colors;
-  int colors_per_channel, ncolors, screen_number, screen_depth,
-    bits_per_pixel, red_offset, green_offset, blue_offset,
-    red_bits, green_bits, blue_bits;
-  unsigned char red_color_table[256], green_color_table[256],
-    blue_color_table[256];
-  unsigned int *grad_xbuffer, *grad_ybuffer, grad_buffer_width,
-    grad_buffer_height;
-  unsigned long *sqrt_table, cache_max;
+  int ncolors;
 
-  typedef struct Cache {
+  int red_offset, green_offset, blue_offset, red_bits, green_bits, blue_bits;
+
+  struct CachedImage {
     Pixmap pixmap;
 
     unsigned int count, width, height;
     unsigned long pixel1, pixel2, texture;
-  } Cache;
+  };
 
-  LinkedList<Cache> *cache;
+  typedef std::list<CachedImage> CacheContainer;
+  CacheContainer cache;
 
-
-protected:
-  Pixmap searchCache(unsigned int, unsigned int, unsigned long, BColor *,
-                     BColor *);
-
-
-public:
-  BImageControl(BaseDisplay *, ScreenInfo *, Bool = False, int = 4,
-                unsigned long = 300000l, unsigned long = 200l);
-  virtual ~BImageControl(void);
-
-  inline BaseDisplay *getBaseDisplay(void) { return basedisplay; }
-
-  inline const Bool &doDither(void) { return dither; }
-
-  inline ScreenInfo *getScreenInfo(void) { return screeninfo; }
-
-  inline const Window &getDrawable(void) const { return window; }
-
-  inline Visual *getVisual(void) { return screeninfo->getVisual(); }
-
-  inline const int &getBitsPerPixel(void) const { return bits_per_pixel; }
-  inline const int &getDepth(void) const { return screen_depth; }
-  inline const int &getColorsPerChannel(void) const
-    { return colors_per_channel; }
-
-  unsigned long getColor(const char *);
-  unsigned long getColor(const char *, unsigned char *, unsigned char *,
-                         unsigned char *);
-  unsigned long getSqrt(unsigned int);
-
-  Pixmap renderImage(unsigned int, unsigned int, BTexture *);
-
-  void installRootColormap(void);
-  void removeImage(Pixmap);
-  void getColorTables(unsigned char **, unsigned char **, unsigned char **,
-                      int *, int *, int *, int *, int *, int *);
-  void getXColorTable(XColor **, int *);
-  void getGradientBuffers(unsigned int, unsigned int,
-                          unsigned int **, unsigned int **);
-  void setDither(Bool d) { dither = d; }
-  void setColorsPerChannel(int);
-  void parseTexture(BTexture *, char *);
-  void parseColor(BColor *, char * = 0);
-
-  virtual void timeout(void);
+#ifdef    TIMEDCACHE
+  BTimer *timer;
+#endif // TIMEDCACHE
 };
 
-
 #endif // __Image_hh
-
