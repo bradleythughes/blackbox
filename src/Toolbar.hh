@@ -37,7 +37,8 @@ extern "C" {
 class Toolbarmenu;
 
 
-class Toolbar : public bt::TimeoutHandler, public bt::EventHandler {
+class Toolbar : public bt::TimeoutHandler, public bt::EventHandler,
+                public bt::NoCopy {
 private:
   bool on_top, editing, hidden, do_auto_hide;
   Display *display;
@@ -82,36 +83,33 @@ private:
 
   void checkClock(bool redraw = False);
 
-  Toolbar(const Toolbar&);
-  Toolbar& operator=(const Toolbar&);
-
 public:
-  Toolbar(BScreen *scrn);
-  virtual ~Toolbar(void);
+  explicit Toolbar(BScreen *scrn);
+  ~Toolbar(void);
 
-  inline bool isEditing(void) const { return editing; }
-  inline bool isOnTop(void) const { return on_top; }
-  inline bool isHidden(void) const { return hidden; }
-  inline bool doAutoHide(void) const { return do_auto_hide; }
+  bool isEditing(void) const { return editing; }
+  bool isOnTop(void) const { return on_top; }
+  bool isHidden(void) const { return hidden; }
+  bool doAutoHide(void) const { return do_auto_hide; }
 
-  inline Window getWindowID(void) const { return frame.window; }
+  Window getWindowID(void) const { return frame.window; }
 
-  inline const bt::Rect& getRect(void) const { return frame.rect; }
-  inline unsigned int getWidth(void) const { return frame.rect.width(); }
-  inline unsigned int getHeight(void) const { return frame.rect.height(); }
-  inline unsigned int getExposedHeight(void) const
+  const bt::Rect& getRect(void) const { return frame.rect; }
+  unsigned int getWidth(void) const { return frame.rect.width(); }
+  unsigned int getHeight(void) const { return frame.rect.height(); }
+  unsigned int getExposedHeight(void) const
   { return ((do_auto_hide) ? frame.bevel_w : frame.rect.height()); }
-  inline int getX(void) const
+  int getX(void) const
   { return ((hidden) ? frame.x_hidden : frame.rect.x()); }
-  inline int getY(void) const
+  int getY(void) const
   { return ((hidden) ? frame.y_hidden : frame.rect.y()); }
 
-  void buttonPressEvent(const XButtonEvent *be);
-  void buttonReleaseEvent(const XButtonEvent *re);
-  void enterNotifyEvent(const XCrossingEvent * /*unused*/);
-  void leaveNotifyEvent(const XCrossingEvent * /*unused*/);
-  void exposeEvent(const XExposeEvent *ee);
-  void keyPressEvent(const XKeyEvent /**ke*/);
+  virtual void buttonPressEvent(const XButtonEvent* const be);
+  virtual void buttonReleaseEvent(const XButtonEvent* const re);
+  virtual void enterNotifyEvent(const XCrossingEvent* const /*unused*/);
+  virtual void leaveNotifyEvent(const XCrossingEvent* const /*unused*/);
+  virtual void exposeEvent(const XExposeEvent* const ee);
+  virtual void keyPressEvent(const XKeyEvent* const /**ke*/);
 
   void edit(void);
   void reconfigure(void);

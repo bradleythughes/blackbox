@@ -42,7 +42,7 @@ extern "C" {
 }
 
 #include "i18n.hh"
-#include "GCCache.hh"
+#include "Pen.hh"
 #include "Texture.hh"
 #include "bsetroot.hh"
 
@@ -198,14 +198,14 @@ void bsetroot::solid(void) {
   for (unsigned int screen = 0; screen < display.screenCount(); screen++) {
     const bt::ScreenInfo * const screen_info = display.screenNumber(screen);
     XSetWindowBackground(display.XDisplay(), screen_info->getRootWindow(),
-                         c.pixel(display, screen));
+                         c.pixel(screen));
     XClearWindow(display.XDisplay(), screen_info->getRootWindow());
 
     Pixmap pixmap =
       XCreatePixmap(display.XDisplay(), screen_info->getRootWindow(),
                     8, 8, DefaultDepth(display.XDisplay(), screen));
 
-    bt::Pen pen(display, screen, c);
+    bt::Pen pen(screen, c);
     XFillRectangle(display.XDisplay(), pixmap, pen.gc(), 0, 0, 8, 8);
 
     setPixmapProperty(screen, duplicatePixmap(screen, pixmap, 8, 8));
@@ -250,8 +250,8 @@ void bsetroot::modula(int x, int y) {
                             data, 16, 16);
 
     XGCValues gcv;
-    gcv.foreground = f.pixel(display, screen);
-    gcv.background = b.pixel(display, screen);
+    gcv.foreground = f.pixel(screen);
+    gcv.background = b.pixel(screen);
 
     gc = XCreateGC(display.XDisplay(), screen_info->getRootWindow(),
                    GCForeground | GCBackground, &gcv);
