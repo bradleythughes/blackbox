@@ -525,43 +525,36 @@ void BaseDisplay::process_event(XEvent *e)
       return;
   }
 
-#define CHECK_MOUSE_POPUP() \
-  { \
-    if (popup_grab) { \
-      if (popwidget != widget) { \
-        if (widget->type() != Widget::Popup || \
-             ! widget->rect().contains(Point(e->xbutton.x_root, \
-                                               e->xbutton.y_root))) \
-          widget = popwidget; \
-      } \
-      XAllowEvents(*this, SyncPointer, CurrentTime); \
-    } \
-  }
-
   switch (e->type) {
   case ButtonPress:
-    CHECK_MOUSE_POPUP();
-    widget->buttonPressEvent(e);
-    break;
-
   case ButtonRelease:
-    CHECK_MOUSE_POPUP();
-    widget->buttonReleaseEvent(e);
-    break;
-
   case MotionNotify:
-    {
-      XEvent realevent;
-      unsigned int i = 0;
-      while(XCheckTypedWindowEvent(*this, e->xmotion.window, MotionNotify,
-                                   &realevent))
-        i++;
-      if (i > 0)
-        e = &realevent;
-      CHECK_MOUSE_POPUP();
-      widget->pointerMotionEvent(e);
-      break;
+    if (popup_grab) {
+      if (popwidget != widget) {
+        if (widget->type() != Widget::Popup ||
+            ! widget->rect().contains(Point(e->xbutton.x_root,
+                                            e->xbutton.y_root)))
+          widget = popwidget;
+      }
+      XAllowEvents(*this, SyncPointer, CurrentTime);
     }
+    switch (e->type) {
+    case ButtonPress:   widget->buttonPressEvent(e);   break;
+    case ButtonRelease: widget->buttonReleaseEvent(e); break;
+    case MotionNotify:
+      {
+        XEvent realevent;
+        unsigned int i = 0;
+        while(XCheckTypedWindowEvent(*this, e->xmotion.window, MotionNotify,
+                                     &realevent))
+          i++;
+        if (i > 0)
+          e = &realevent;
+        widget->pointerMotionEvent(e);
+        break;
+      }
+    }
+    break;
 
   case EnterNotify:
     if (e->xcrossing.mode != NotifyNormal ||
