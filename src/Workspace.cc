@@ -307,44 +307,23 @@ void Workspace::shutdown(void) {
   }
 }
 
-#define CALC_POSSIBLE_X() \
-  { \
-    if (r.right() > x) \
-      possible = possible < r.right() ? possible : r.right(); \
-    if (r.left() - width > x) \
-      possible = possible < r.left() - width ? possible : r.left() - width; \
-  }
+static int calc_possible_x(const Rect &r, int x, int width, int possible)
+{
+  if (r.right() > x)
+    possible = possible < r.right() ? possible : r.right();
+  if (r.left() - width > x)
+    possible = possible < r.left() - width ? possible : r.left() - width;
+  return possible;
+}
 
-#define CALC_POSSIBLE_Y() \
-  { \
-    if (r.bottom() > y) \
-      possible = possible < r.bottom() ? possible : r.bottom(); \
-    if (r.top() - height > y) \
-      possible = possible < r.top() - height ? possible : r.top() - height; \
-  }
-
-#define CALC_OVERLAP() \
-  { \
-    overlap = 0; \
-    Rect one(x, y, width, height); \
-    BlackboxWindow *c; \
-    LinkedListIterator<BlackboxWindow> it(windowList); \
-    while ( it.current() ) { \
-      c = it.current(); \
-      it++; \
-      if (c != win) { \
-        int h = c->isShaded() ? c->getTitleHeight() : c->getHeight(); \
-        Rect two(c->getXFrame(), c->getYFrame(), \
-                 c->getWidth() + screen->style()->borderWidth() * 2, \
-                 h + screen->style()->borderWidth() * 2); \
-        if (two.intersects(one)) { \
-          two &= one; \
-          overlap += (two.right() - two.left()) * \
-                     (two.bottom() - two.top()); \
-        } \
-      } \
-    } \
-  }
+static int calc_possible_y(const Rect &r, int y, int height, int possible)
+{
+  if (r.bottom() > y)
+    possible = possible < r.bottom() ? possible : r.bottom();
+  if (r.top() - height > y)
+    possible = possible < r.top() - height ? possible : r.top() - height;
+  return possible;
+}
 
 void Workspace::placeWindow(BlackboxWindow *win) {
   Rect avail = screen->availableArea();
@@ -370,7 +349,25 @@ void Workspace::placeWindow(BlackboxWindow *win) {
         } else if (x + width > avail.right()) {
           overlap = -2;
         } else {
-          CALC_OVERLAP();
+          overlap = 0;
+          Rect one(x, y, width, height);
+          BlackboxWindow *c;
+          LinkedListIterator<BlackboxWindow> it(windowList);
+          while ( it.current() ) {
+            c = it.current();
+            it++;
+            if (c != win) {
+              int h = c->isShaded() ? c->getTitleHeight() : c->getHeight();
+              Rect two(c->getXFrame(), c->getYFrame(),
+                       c->getWidth() + screen->style()->borderWidth() * 2,
+                       h + screen->style()->borderWidth() * 2);
+              if (two.intersects(one)) {
+                two &= one;
+                overlap += (two.right() - two.left()) *
+                           (two.bottom() - two.top());
+              }
+            }
+          }
         }
 
         if (overlap == 0) {
@@ -402,7 +399,7 @@ void Workspace::placeWindow(BlackboxWindow *win) {
                      h + screen->style()->borderWidth() * 2);
 
               if ((y < r.bottom()) && (r.top() < y + height)) {
-                CALC_POSSIBLE_X();
+                possible = calc_possible_x(r, x, width, possible);
               }
             }
           }
@@ -424,7 +421,7 @@ void Workspace::placeWindow(BlackboxWindow *win) {
               Rect r(c->getXFrame(), c->getYFrame(),
                      c->getWidth() + screen->style()->borderWidth() * 2,
                      h + screen->style()->borderWidth() * 2);
-              CALC_POSSIBLE_Y();
+              possible = calc_possible_y(r, y, height, possible);
             }
           }
 
@@ -451,7 +448,25 @@ void Workspace::placeWindow(BlackboxWindow *win) {
         } else if (x + width > avail.right()) {
           overlap = -1;
         } else {
-          CALC_OVERLAP();
+          overlap = 0;
+          Rect one(x, y, width, height);
+          BlackboxWindow *c;
+          LinkedListIterator<BlackboxWindow> it(windowList);
+          while ( it.current() ) {
+            c = it.current();
+            it++;
+            if (c != win) {
+              int h = c->isShaded() ? c->getTitleHeight() : c->getHeight();
+              Rect two(c->getXFrame(), c->getYFrame(),
+                       c->getWidth() + screen->style()->borderWidth() * 2,
+                       h + screen->style()->borderWidth() * 2);
+              if (two.intersects(one)) {
+                two &= one;
+                overlap += (two.right() - two.left()) *
+                           (two.bottom() - two.top());
+              }
+            }
+          }
         }
 
         if (overlap == 0) {
@@ -483,7 +498,7 @@ void Workspace::placeWindow(BlackboxWindow *win) {
                      h + screen->style()->borderWidth() * 2);
 
               if ((x < r.right()) && (r.left() < x + width)) {
-                CALC_POSSIBLE_Y();
+                possible = calc_possible_y(r, y, height, possible);
               }
             }
           }
@@ -505,7 +520,7 @@ void Workspace::placeWindow(BlackboxWindow *win) {
               Rect r(c->getXFrame(), c->getYFrame(),
                      c->getWidth() + screen->style()->borderWidth() * 2,
                      h + screen->style()->borderWidth() * 2);
-              CALC_POSSIBLE_X();
+              possible = calc_possible_x(r, x, width, possible);
             }
           }
 
