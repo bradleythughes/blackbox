@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Windowmenu.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -30,164 +31,121 @@
 #  include "../config.h"
 #endif // HAVE_CONFIG_H
 
-#include "i18n.hh"
-#include "blackbox.hh"
+#include "Windowmenu.hh"
 #include "Screen.hh"
 #include "Window.hh"
-#include "Windowmenu.hh"
 #include "Workspace.hh"
 
-#ifdef    STDC_HEADERS
-#  include <string.h>
-#endif // STDC_HEADERS
 
+class SendToMenu : public Basemenu
+{
+public:
+  SendToMenu(int src, BlackboxWindow *w);
 
-Windowmenu::Windowmenu(BlackboxWindow *win) : Basemenu(win->getScreen()) {
-  window = win;
-  screen = window->getScreen();
+  void refresh();
 
-  setTitleVisibility(False);
-  setMovable(False);
-  setInternalMenu();
+protected:
+  void itemClicked(const Item &, int);
 
-  sendToMenu = new SendtoWorkspacemenu(this);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuSendTo, "Send To ..."),
-	 sendToMenu);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuShade, "Shade"),
-	 BScreen::WindowShade);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuIconify, "Iconify"),
-	 BScreen::WindowIconify);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuMaximize, "Maximize"),
-	 BScreen::WindowMaximize);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuRaise,"Raise"),
-	 BScreen::WindowRaise);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuLower, "Lower"),
-	 BScreen::WindowLower);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuStick, "Stick"),
-	 BScreen::WindowStick);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuKillClient, "Kill Client"),
-	 BScreen::WindowKill);
-  insert(i18n->getMessage(WindowmenuSet, WindowmenuClose, "Close"),
-	 BScreen::WindowClose);
+private:
+  BlackboxWindow *window;
+};
 
-  update();
-
-  setItemEnabled(1, window->hasTitlebar());
-  setItemEnabled(2, window->isIconifiable());
-  setItemEnabled(3, window->isMaximizable());
-  setItemEnabled(8, window->isClosable());
+SendToMenu::SendToMenu(int scr, BlackboxWindow *w)
+  : Basemenu(scr), window(w)
+{
 }
 
-
-Windowmenu::~Windowmenu(void) {
-  delete sendToMenu;
+void SendToMenu::refresh()
+{
+  int i;
+  clear();
+  for (i = 0; i < window->getScreen()->getCount(); i++)
+    insert(window->getScreen()->getWorkspace(i)->getName());
+  setItemChecked(window->getWorkspaceNumber(), true);
 }
 
+void SendToMenu::itemClicked(const Item &item, int button)
+{
+  if (button > 2)
+    return;
 
-void Windowmenu::show(void) {
-  if (isItemEnabled(1)) setItemSelected(1, window->isShaded());
-  if (isItemEnabled(3)) setItemSelected(3, window->isMaximized());
-  if (isItemEnabled(6)) setItemSelected(6, window->isStuck());
+  if (item.index() <= window->getScreen()->getCount()) {
+    if (item.index() == window->getScreen()->getCurrentWorkspaceID())
+      return;
 
-  Basemenu::show();
-}
+    if (window->isStuck())
+      window->stick();
 
-
-void Windowmenu::itemSelected(int button, int index) {
-  BasemenuItem *item = find(index);
-
-  hide();
-  switch (item->function()) {
-  case BScreen::WindowShade:
-    window->shade();
-    break;
-
-  case BScreen::WindowIconify:
-    window->iconify();
-    break;
-
-  case BScreen::WindowMaximize:
-    window->maximize((unsigned int) button);
-    break;
-
-  case BScreen::WindowClose:
-    window->close();
-    break;
-
-  case BScreen::WindowRaise:
-    screen->getWorkspace(window->getWorkspaceNumber())->raiseWindow(window);
-    break;
-
-  case BScreen::WindowLower:
-    screen->getWorkspace(window->getWorkspaceNumber())->lowerWindow(window);
-    break;
-
-  case BScreen::WindowStick:
-    window->stick();
-    break;
-
-  case BScreen::WindowKill:
-    XKillClient(screen->getBaseDisplay()->getXDisplay(),
-                window->getClientWindow());
-    break;
+    if (button == 1)
+      window->withdraw();
+    window->getScreen()->reassociateWindow(window, item.index(), True);
+    if (button == 2)
+      window->getScreen()->changeWorkspaceID(item.index());
   }
 }
 
+/*
+  item indexes:
 
-void Windowmenu::reconfigure(void) {
-  setItemEnabled(1, window->hasTitlebar());
-  setItemEnabled(2, window->isIconifiable());
-  setItemEnabled(3, window->isMaximizable());
-  setItemEnabled(8, window->isClosable());
-
-  sendToMenu->reconfigure();
-
-  Basemenu::reconfigure();
+  0  - send to ...
+  2  - shade
+  3  - iconify
+  4  - maximize
+  5  - raise
+  6  - lower
+  7  - stick
+  9  - kill client
+  10 - close
+*/
+Windowmenu::Windowmenu(int scr, BlackboxWindow *w)
+  : Basemenu(scr), window(w)
+{
+  insert("Send To ...", new SendToMenu(scr, w));
+  insertSeparator();
+  insert("Shade", Shade);
+  insert("Iconify", Iconify);
+  insert("Maximize", Maximize);
+  insert("Raise", Raise);
+  insert("Lower", Lower);
+  insert("Stick", Stick);
+  insertSeparator();
+  insert("Kill Client", KillClient);
+  insert("Close", Close);
 }
 
+void Windowmenu::refresh()
+{
+  fprintf(stderr, "Windowmenu::refresh: TODO - make BlackboxWindow update these\n");
 
-Windowmenu::SendtoWorkspacemenu::SendtoWorkspacemenu(Windowmenu *w)
-  : Basemenu(w->screen) {
-  windowmenu = w;
+  setItemEnabled(2, window->hasTitlebar());
+  setItemChecked(2, window->isShaded());
 
-  setTitleVisibility(False);
-  setMovable(False);
-  setInternalMenu();
-  update();
+  setItemEnabled(3, window->isIconifiable());
+  setItemChecked(3, window->isIconic());
+
+  setItemEnabled(4, window->isMaximizable());
+  setItemChecked(4, window->isMaximized());
+
+  setItemChecked(7, window->isStuck());
+
+  setItemEnabled(10, window->isClosable());
 }
 
+void Windowmenu::itemClicked(const Item &item, int button)
+{
+  if (button != 1 && item.function() != Maximize)
+    return;
 
-void Windowmenu::SendtoWorkspacemenu::itemSelected(int button, int index) {
-  if (button > 2) return;
-
-  if (index <= windowmenu->screen->getCount()) {
-    if (index == windowmenu->screen->getCurrentWorkspaceID()) return;
-    if (windowmenu->window->isStuck()) windowmenu->window->stick();
-
-    if (button == 1) windowmenu->window->withdraw();
-    windowmenu->screen->reassociateWindow(windowmenu->window, index, True);
-    if (button == 2) windowmenu->screen->changeWorkspaceID(index);
+  switch(item.function()) {
+  case Shade:	   window->shade();          break;
+  case Iconify:    window->iconify();        break;
+  case Maximize:   window->maximize(button); break;
+  case Raise:      window->raise();          break;
+  case Lower:      window->lower();          break;
+  case Stick:      window->stick();          break;
+  case KillClient: window->killClient();     break;
+  case Close:      window->close();          break;
+  default: break;
   }
-  hide();
-}
-
-
-void Windowmenu::SendtoWorkspacemenu::update(void) {
-  int i, r = getCount();
-
-  if (r != 0)
-    for (i = 0; i < r; ++i)
-      remove(0);
-
-  for (i = 0; i < windowmenu->screen->getCount(); ++i)
-    insert(windowmenu->screen->getWorkspace(i)->getName());
-
-  Basemenu::update();
-}
-
-
-void Windowmenu::SendtoWorkspacemenu::show(void) {
-  update();
-
-  Basemenu::show();
 }

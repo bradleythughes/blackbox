@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Clientmenu.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -20,12 +21,6 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-// stupid macros needed to access some functions in version 2 of the GNU C
-// library
-#ifndef   _GNU_SOURCE
-#define   _GNU_SOURCE
-#endif // _GNU_SOURCE
-
 #ifdef    HAVE_CONFIG_H
 #  include "../config.h"
 #endif // HAVE_CONFIG_H
@@ -38,18 +33,19 @@
 #include "Workspacemenu.hh"
 
 
-Clientmenu::Clientmenu(Workspace *ws) : Basemenu(ws->getScreen()) {
+Clientmenu::Clientmenu(Workspace *ws, int scr)
+  : Basemenu(scr)
+{
+  setAutoDelete(false);
   wkspc = ws;
-  screen = wkspc->getScreen();
-
-  setInternalMenu();
 }
 
+void Clientmenu::itemClicked(const Item &item, int button)
+{
+  if (button > 2)
+    return;
 
-void Clientmenu::itemSelected(int button, int index) {
-  if (button > 2) return;
-
-  BlackboxWindow *win = wkspc->getWindow(index);
+  BlackboxWindow *win = wkspc->getWindow(item.index());
   if (win) {
     if (button == 1) {
       if (! wkspc->isCurrent()) wkspc->setCurrent();
@@ -59,6 +55,4 @@ void Clientmenu::itemSelected(int button, int index) {
     wkspc->raiseWindow(win);
     win->setInputFocus();
   }
-
-  if (! (screen->getWorkspacemenu()->isTorn() || isTorn())) hide();
 }

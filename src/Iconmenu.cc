@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Icon.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -20,45 +21,38 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-// stupid macros needed to access some functions in version 2 of the GNU C
-// library
-#ifndef   _GNU_SOURCE
-#define   _GNU_SOURCE
-#endif // _GNU_SOURCE
-
 #ifdef    HAVE_CONFIG_H
 #  include "../config.h"
 #endif // HAVE_CONFIG_H
 
-#include "i18n.hh"
 #include "Iconmenu.hh"
 #include "Screen.hh"
 #include "Window.hh"
+#include "blackbox.hh"
+#include "i18n.hh"
 
 
-Iconmenu::Iconmenu(BScreen *scrn) : Basemenu(scrn) {
-  setInternalMenu();
+Iconmenu::Iconmenu(int scrn)
+  : Basemenu(scrn)
+{
+  setAutoDelete(false);
 
-  screen = scrn;
-
-  setLabel(i18n->getMessage(IconSet, IconIcons, "Icons"));
-  update();
+  setTitle(i18n(IconSet, IconIcons, "Icons"));
+  showTitle();
 }
 
-
-void Iconmenu::itemSelected(int button, int index) {
+void Iconmenu::itemClicked(const Item &item, int button)
+{
   if (button != 1)
     return;
 
-  if (index >= 0 && index < screen->getIconCount()) {
-    BlackboxWindow *win = screen->getIcon(index);
+  BScreen *screen = Blackbox::instance()->screen(screenNumber());
+  if ( item.index() >= 0 && item.index() < screen->getIconCount()) {
+    BlackboxWindow *win = screen->icon(item.index());
 
     if (win) {
       win->deiconify();
       win->setInputFocus();
     }
   }
-
-  if (! (screen->getWorkspacemenu()->isTorn() || isTorn()))
-    hide();
 }

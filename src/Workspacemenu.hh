@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // WorkspaceMenu.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -25,21 +26,17 @@
 
 #include "Basemenu.hh"
 
-// forward declaration
-class Workspacemenu;
-class Toolbar;
 
-class Workspacemenu : public Basemenu {
-private:
-  BScreen *screen;
-
-protected:
-  virtual void itemSelected(int, int);
-
+class Workspacemenu : public Basemenu
+{
 public:
   Workspacemenu(BScreen *);
+
+protected:
+  virtual void itemClicked(const Item &, int);
+
+private:
+  BScreen *screen;
 };
 
-
 #endif // __Workspacemenu_hh
-

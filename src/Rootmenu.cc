@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Rootmenu.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -32,82 +33,46 @@
 
 #include "blackbox.hh"
 #include "Rootmenu.hh"
-#include "Screen.hh"
+#include "Util.hh"
 
-#ifdef    HAVE_STDIO_H
-#  include <stdio.h>
-#endif // HAVE_STDIO_H
-
-#ifdef    STDC_HEADERS
-#  include <stdlib.h>
-#  include <string.h>
-#endif // STDC_HEADERS
-
-#ifdef    HAVE_SYS_PARAM_H
-#  include <sys/param.h>
-#endif // HAVE_SYS_PARAM_H
-
-#ifndef   MAXPATHLEN
-#define   MAXPATHLEN 255
-#endif // MAXPATHLEN
+#include <string>
+using std::string;
 
 
-Rootmenu::Rootmenu(BScreen *scrn) : Basemenu(scrn) {
-  screen = scrn;
-  blackbox = screen->getBlackbox();
+Rootmenu::Rootmenu(int scr)
+    : Basemenu(scr)
+{
 }
 
-
-void Rootmenu::itemSelected(int button, int index) {
+void Rootmenu::itemClicked(const Item &item, int button)
+{
   if (button != 1)
     return;
 
-  BasemenuItem *item = find(index);
-
-  if (!item->function())
-    return;
-
-  switch (item->function()) {
-  case BScreen::Execute:
-    if (item->exec()) {
-#ifndef    __EMX__
-      char displaystring[MAXPATHLEN];
-      sprintf(displaystring, "DISPLAY=%s",
-	      DisplayString(screen->getBaseDisplay()->getXDisplay()));
-      sprintf(displaystring + strlen(displaystring) - 1, "%d",
-	      screen->getScreenNumber());
-
-      bexec(item->exec(), displaystring);
-#else //   __EMX__
-      spawnlp(P_NOWAIT, "cmd.exe", "cmd.exe", "/c", item->exec(), NULL);
-#endif // !__EMX__
-    }
+  switch(item.function()) {
+  case Execute:
+    bexec(item.command(),
+          BaseDisplay::instance()->screenInfo(screenNumber())->displayString());
     break;
 
-  case BScreen::Restart:
-    blackbox->restart();
+  case Restart:
+    Blackbox::instance()->restart();
     break;
 
-  case BScreen::RestartOther:
-    if (item->exec())
-      blackbox->restart(item->exec());
+  case RestartOther:
+    Blackbox::instance()->restart(item.command().c_str());
     break;
 
-  case BScreen::Exit:
-    blackbox->shutdown();
+  case Exit:
+    Blackbox::instance()->shutdown();
     break;
 
-  case BScreen::SetStyle:
-    if (item->exec())
-      blackbox->saveStyleFilename(item->exec());
+  case SetStyle:
+    Blackbox::instance()->saveStyleFilename(item.command().c_str());
+    // fall through intended
 
-  case BScreen::Reconfigure:
-    blackbox->reconfigure();
-    return;
+  case Reconfigure:
+    Blackbox::instance()->reconfigure();
+    break;
   }
-
-  if (! (screen->getRootmenu()->isTorn() || isTorn()) &&
-      item->function() != BScreen::Reconfigure &&
-      item->function() != BScreen::SetStyle)
-    hide();
 }

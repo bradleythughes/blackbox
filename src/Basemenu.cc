@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Basemenu.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -20,1017 +21,1507 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-// stupid macros needed to access some functions in version 2 of the GNU C
-// library
-#ifndef   _GNU_SOURCE
-#define   _GNU_SOURCE
-#endif // _GNU_SOURCE
-
 #ifdef    HAVE_CONFIG_H
 #  include "../config.h"
 #endif // HAVE_CONFIG_H
 
-#ifdef    HAVE_STDIO_H
-#  include <stdio.h>
-#endif // HAVE_STDIO_H
+#include <X11/Xutil.h>
+#include <X11/keysym.h>
+#include <X11/keysymdef.h>
 
-#ifdef    STDC_HEADERS
-#  include <stdlib.h>
-#  include <string.h>
-#endif // STDC_HEADERS
-
-#include <algorithm>
-using namespace std;
-
-#include "i18n.hh"
-#include "blackbox.hh"
 #include "Basemenu.hh"
+#include "BaseDisplay.hh"
+#include "Color.hh"
+#include "GCCache.hh"
 #include "Screen.hh"
+#include "blackbox.hh"
+#include "i18n.hh"
 
-static Basemenu *shown = (Basemenu *) 0;
+#include <stdio.h>
 
-Basemenu::Basemenu(BScreen *scrn) {
-  screen = scrn;
-  blackbox = screen->getBlackbox();
-  image_ctrl = screen->getImageControl();
-  display = blackbox->getXDisplay();
-  parent = (Basemenu *) 0;
-  alignment = AlignDontCare;
 
-  title_vis =
-    movable =
-    hide_tree = True;
+// new basemenu popup
 
-  shifted =
-    internal_menu =
-    moving =
-    torn =
-    visible = False;
-
-  menu.x =
-    menu.y =
-    menu.x_shift =
-    menu.y_shift =
-    menu.x_move =
-    menu.y_move = 0;
-
-  which_sub =
-    which_press =
-    which_sbl = -1;
-
-  menu.frame_pixmap =
-    menu.title_pixmap =
-    menu.hilite_pixmap =
-    menu.sel_pixmap = None;
-
-  menu.bevel_w = screen->getBevelWidth();
-
-  if (i18n->multibyte())
-    menu.width = menu.title_h = menu.item_w = menu.frame_h =
-      screen->getMenuStyle()->t_fontset_extents->max_ink_extent.height +
-	(menu.bevel_w  * 2);
-  else
-    menu.width = menu.title_h = menu.item_w = menu.frame_h =
-      screen->getMenuStyle()->t_font->ascent +
-        screen->getMenuStyle()->t_font->descent + (menu.bevel_w * 2);
-  
-  menu.label = 0;
-  
-  menu.sublevels =
-    menu.persub =
-    menu.minsub = 0;
-  
-  MenuStyle *style = screen->getMenuStyle();
-  if (i18n->multibyte()) {
-    menu.item_h = style->f_fontset_extents->max_ink_extent.height +
-      (menu.bevel_w);
-  } else {
-    menu.item_h = style->f_font->ascent + style->f_font->descent +
-		  (menu.bevel_w);
-  }
-  
-  menu.height = menu.title_h + screen->getBorderWidth() + menu.frame_h;
-  
-  unsigned long attrib_mask = CWBackPixmap | CWBackPixel | CWBorderPixel |
-			      CWColormap | CWOverrideRedirect | CWEventMask;
-  XSetWindowAttributes attrib;
-  attrib.background_pixmap = None;
-  attrib.background_pixel = attrib.border_pixel =
-			    screen->getBorderColor()->getPixel();
-  attrib.colormap = screen->getColormap();
-  attrib.override_redirect = True;
-  attrib.event_mask = ButtonPressMask | ButtonReleaseMask |
-                      ButtonMotionMask | ExposureMask;
-
-  menu.window =
-    XCreateWindow(display, screen->getRootWindow(), menu.x, menu.y, menu.width,
-		  menu.height, screen->getBorderWidth(), screen->getDepth(),
-                  InputOutput, screen->getVisual(), attrib_mask, &attrib);
-  blackbox->saveMenuSearch(menu.window, this);
-
-  attrib_mask = CWBackPixmap | CWBackPixel | CWBorderPixel | CWEventMask;
-  attrib.background_pixel = screen->getBorderColor()->getPixel();
-  attrib.event_mask |= EnterWindowMask | LeaveWindowMask;
-
-  menu.title =
-    XCreateWindow(display, menu.window, 0, 0, menu.width, menu.height, 0,
-		  screen->getDepth(), InputOutput, screen->getVisual(),
-		  attrib_mask, &attrib);
-  blackbox->saveMenuSearch(menu.title, this);
-
-  attrib.event_mask |= PointerMotionMask;
-  menu.frame = XCreateWindow(display, menu.window, 0,
-			     menu.title_h + screen->getBorderWidth(),
-			     menu.width, menu.frame_h, 0,
-			     screen->getDepth(), InputOutput,
-			     screen->getVisual(), attrib_mask, &attrib);
-  blackbox->saveMenuSearch(menu.frame, this);
-
-  menuitems = new LinkedList<BasemenuItem>;
-
-  // even though this is the end of the constructor the menu is still not
-  // completely created.  items must be inserted and it must be update()'d
-}
-
-
-Basemenu::~Basemenu(void) {
-  XUnmapWindow(display, menu.window);
-
-  if (shown && shown->getWindowID() == getWindowID())
-    shown = (Basemenu *) 0;
-
-  int n = menuitems->count();
-  for (int i = 0; i < n; ++i)
-    remove(0);
-
-  delete menuitems;
-
-  if (menu.label)
-    delete [] menu.label;
-
-  if (menu.title_pixmap)
-    image_ctrl->removeImage(menu.title_pixmap);
-
-  if (menu.frame_pixmap)
-    image_ctrl->removeImage(menu.frame_pixmap);
-
-  if (menu.hilite_pixmap)
-    image_ctrl->removeImage(menu.hilite_pixmap);
-
-  if (menu.sel_pixmap)
-    image_ctrl->removeImage(menu.sel_pixmap);
-
-  blackbox->removeMenuSearch(menu.title);
-  XDestroyWindow(display, menu.title);
-
-  blackbox->removeMenuSearch(menu.frame);
-  XDestroyWindow(display, menu.frame);
-
-  blackbox->removeMenuSearch(menu.window);
-  XDestroyWindow(display, menu.window);
-}
-
-
-int Basemenu::insert(const char *l, int function, const char *e, int pos) {
-  char *label = 0, *exec = 0;
-
-  if (l) label = bstrdup(l);
-  if (e) exec = bstrdup(e);
-
-  BasemenuItem *item = new BasemenuItem(label, function, exec);
-  menuitems->insert(item, pos);
-
-  return menuitems->count();
-}
-
-
-int Basemenu::insert(const char *l, Basemenu *submenu, int pos) {
-  char *label = 0;
-
-  if (l) label = bstrdup(l);
-
-  BasemenuItem *item = new BasemenuItem(label, submenu);
-  menuitems->insert(item, pos);
-
-  submenu->parent = this;
-
-  return menuitems->count();
-}
-
-
-int Basemenu::insert(const char **ulabel, int pos, int function) {
-  BasemenuItem *item = new BasemenuItem(ulabel, function);
-  menuitems->insert(item, pos);
-
-  return menuitems->count();
-}
-
-
-int Basemenu::remove(int index) {
-  if (index < 0 || index > menuitems->count()) return -1;
-
-  BasemenuItem *item = menuitems->remove(index);
-
-  if (item) {
-    if ((! internal_menu) && (item->submenu())) {
-      Basemenu *tmp = (Basemenu *) item->submenu();
-
-      if (! tmp->internal_menu) {
-	delete tmp;
-      } else {
-	tmp->internal_hide();
-      }
-    }
-
-    if (item->label())
-      delete [] item->label();
-    
-    if (item->exec())
-      delete [] item->exec();
-
-    delete item;
-  }
-
-  if (which_sub == index)
-    which_sub = -1;
-  else if (which_sub > index)
-    which_sub--;
-
-  return menuitems->count();
-}
-
-
-void Basemenu::update(void) {
-  MenuStyle *style = screen->getMenuStyle();
-  if (i18n->multibyte()) {
-    menu.item_h = style->f_fontset_extents->max_ink_extent.height +
-		  menu.bevel_w;
-    menu.title_h = style->t_fontset_extents->max_ink_extent.height +
-                   (menu.bevel_w * 2);
-  } else {
-    menu.item_h = style->f_font->ascent + style->f_font->descent +
-		  menu.bevel_w;
-    menu.title_h = style->t_font->ascent + style->t_font->descent +
-		   (menu.bevel_w * 2);
-  }
-    
-  if (title_vis) {
-    const char *s = (menu.label) ? menu.label :
-		    i18n->getMessage(BasemenuSet, BasemenuBlackboxMenu,
-				     "Blackbox Menu");
-    int l = strlen(s);
-    
-
-    if (i18n->multibyte()) {
-      XRectangle ink, logical;
-      XmbTextExtents(screen->getMenuStyle()->t_fontset, s, l, &ink, &logical);
-      menu.item_w = logical.width;
-    } else {
-      menu.item_w = XTextWidth(screen->getMenuStyle()->t_font, s, l);
-    }
-    
-    menu.item_w += (menu.bevel_w * 2);
-  }  else {
-    menu.item_w = 1;
-  }
-
-  int ii = 0;
-  LinkedListIterator<BasemenuItem> it(menuitems);
-  for (BasemenuItem *tmp = it.current(); tmp; it++, tmp = it.current()) {
-    const char *s = ((tmp->u && *tmp->u) ? *tmp->u :
-		     ((tmp->l) ? tmp->l : (const char *) 0));
-    int l = strlen(s);
-
-    if (i18n->multibyte()) {
-      XRectangle ink, logical;
-      XmbTextExtents(screen->getMenuStyle()->f_fontset, s, l, &ink, &logical);
-      ii = logical.width;
-    } else
-      ii = XTextWidth(screen->getMenuStyle()->f_font, s, l);
-
-    ii += (menu.bevel_w * 2) + (menu.item_h * 2);
-
-    menu.item_w = ((menu.item_w < (unsigned int) ii) ? ii : menu.item_w);
-  }
-
-  if (menuitems->count()) {
-    menu.sublevels = 1;
-
-    while (((menu.item_h * (menuitems->count() + 1) / menu.sublevels)
-	    + menu.title_h + screen->getBorderWidth()) >
-	   screen->getHeight())
-      menu.sublevels++;
-
-    if (menu.sublevels < menu.minsub) menu.sublevels = menu.minsub;
-
-    menu.persub = menuitems->count() / menu.sublevels;
-    if (menuitems->count() % menu.sublevels) menu.persub++;
-  } else {
-    menu.sublevels = 0;
-    menu.persub = 0;
-  }
-
-  menu.width = (menu.sublevels * (menu.item_w));
-  if (! menu.width) menu.width = menu.item_w;
-
-  menu.frame_h = (menu.item_h * menu.persub);
-  menu.height = ((title_vis) ? menu.title_h + screen->getBorderWidth() : 0) +
-		menu.frame_h;
-  if (! menu.frame_h) menu.frame_h = 1;
-  if (menu.height < 1) menu.height = 1;
-
-  Pixmap tmp;
-  BTexture *texture;
-  if (title_vis) {
-    tmp = menu.title_pixmap;
-    texture = &(screen->getMenuStyle()->title);
-    if (texture->getTexture() == (BImage_Flat | BImage_Solid)) {
-      menu.title_pixmap = None;
-      XSetWindowBackground(display, menu.title,
-			   texture->getColor()->getPixel());
-    } else {
-      menu.title_pixmap =
-        image_ctrl->renderImage(menu.width, menu.title_h, texture);
-      XSetWindowBackgroundPixmap(display, menu.title, menu.title_pixmap);
-    }
-    if (tmp) image_ctrl->removeImage(tmp);
-    XClearWindow(display, menu.title);
-  }
-
-  tmp = menu.frame_pixmap;
-  texture = &(screen->getMenuStyle()->frame);
-  if (texture->getTexture() == (BImage_Flat | BImage_Solid)) {
-    menu.frame_pixmap = None;
-    XSetWindowBackground(display, menu.frame,
-			 texture->getColor()->getPixel());
-  } else {
-    menu.frame_pixmap =
-      image_ctrl->renderImage(menu.width, menu.frame_h, texture);
-    XSetWindowBackgroundPixmap(display, menu.frame, menu.frame_pixmap);
-  }
-  if (tmp) image_ctrl->removeImage(tmp);
-
-  tmp = menu.hilite_pixmap;
-  texture = &(screen->getMenuStyle()->hilite);
-  if (texture->getTexture() == (BImage_Flat | BImage_Solid)) {
-    menu.hilite_pixmap = None;
-  } else {
-    menu.hilite_pixmap =
-      image_ctrl->renderImage(menu.item_w, menu.item_h, texture);
-  }
-  if (tmp) image_ctrl->removeImage(tmp);
-
-  tmp = menu.sel_pixmap;
-  if (texture->getTexture() == (BImage_Flat | BImage_Solid)) {
-    menu.sel_pixmap = None;
-  } else {
-    int hw = menu.item_h / 2;
-    menu.sel_pixmap =
-      image_ctrl->renderImage(hw, hw, texture);
-  }
-  if (tmp) image_ctrl->removeImage(tmp);
-
-  XResizeWindow(display, menu.window, menu.width, menu.height);
-
-  if (title_vis)
-    XResizeWindow(display, menu.title, menu.width, menu.title_h);
-
-  XMoveResizeWindow(display, menu.frame, 0,
-		    ((title_vis) ? menu.title_h +
-		     screen->getBorderWidth() : 0), menu.width,
-		    menu.frame_h);
-
-  XClearWindow(display, menu.window);
-  XClearWindow(display, menu.title);
-  XClearWindow(display, menu.frame);
-
-  if (title_vis && visible) redrawTitle();
-
-  for (int i = 0; visible && i < menuitems->count(); i++) {
-    if (i == which_sub) {
-      drawItem(i, True, 0);
-      drawSubmenu(i);
-    } else {
-      drawItem(i, False, 0);
-    }
-  }
-
-  if (parent && visible)
-    parent->drawSubmenu(parent->which_sub);
-
-  XMapSubwindows(display, menu.window);
-}
-
-
-void Basemenu::show(void) {
-  XMapSubwindows(display, menu.window);
-  XMapWindow(display, menu.window);
-  visible = True;
-
-  if (! parent) {
-    if (shown && (! shown->torn))
-       shown->hide();
-
-    shown = this;
-  }
-}
-
-
-void Basemenu::hide(void) {
-  if ((! torn) && hide_tree && parent && parent->isVisible()) {
-    Basemenu *p = parent;
-
-    while (p->isVisible() && (! p->torn) && p->parent) p = p->parent;
-    p->internal_hide();
-  } else {
-    internal_hide();
-  }
-}
-
-
-void Basemenu::internal_hide(void) {
-  if (which_sub != -1) {
-    BasemenuItem *tmp = menuitems->find(which_sub);
-    tmp->submenu()->internal_hide();
-  }
-
-  if (parent && (! torn)) {
-    parent->drawItem(parent->which_sub, False, True);
-
-    parent->which_sub = -1;
-  } else if (shown && shown->menu.window == menu.window) {
-    shown = (Basemenu *) 0;
-  }
-
-  torn = visible = False;
-  which_sub = which_press = which_sub = -1;
-
-  XUnmapWindow(display, menu.window);
-}
-
-
-void Basemenu::move(int x, int y) {
-  menu.x = x;
-  menu.y = y;
-  XMoveWindow(display, menu.window, x, y);
-  if (which_sub != -1)
-    drawSubmenu(which_sub);
-}
-
-
-void Basemenu::redrawTitle(void) {
-  char *text = (char *) ((menu.label) ? menu.label :
-			 i18n->getMessage(BasemenuSet, BasemenuBlackboxMenu,
-					  "Blackbox Menu"));
-  int dx = menu.bevel_w, len = strlen(text);
-  unsigned int l;
-
-  if (i18n->multibyte()) {
-    XRectangle ink, logical;
-    XmbTextExtents(screen->getMenuStyle()->t_fontset, text, len, &ink, &logical);
-    l = logical.width;
-  } else {
-    l = XTextWidth(screen->getMenuStyle()->t_font, text, len);
-  }
-
-  l +=  (menu.bevel_w * 2);
-
-  switch (screen->getMenuStyle()->t_justify) {
-  case BScreen::RightJustify:
-    dx += menu.width - l;
-    break;
-
-  case BScreen::CenterJustify:
-    dx += (menu.width - l) / 2;
-    break;
-  }
-
-  MenuStyle *style = screen->getMenuStyle();
-  if (i18n->multibyte())
-    XmbDrawString(display, menu.title, style->t_fontset, style->t_text_gc, dx,
-		  (menu.bevel_w - style->t_fontset_extents->max_ink_extent.y),
-		  text, len);
-  else
-    XDrawString(display, menu.title, style->t_text_gc, dx,
-		(style->t_font->ascent + menu.bevel_w), text, len);
-}
-
-
-void Basemenu::drawSubmenu(int index) {
-  if (which_sub != -1 && which_sub != index) {
-    BasemenuItem *itmp = menuitems->find(which_sub);
-
-    if (! itmp->submenu()->isTorn())
-      itmp->submenu()->internal_hide();
-  }
-
-  if (index >= 0 && index < menuitems->count()) {
-    BasemenuItem *item = menuitems->find(index);
-    if (item->submenu() && visible && (! item->submenu()->isTorn()) &&
-	item->isEnabled()) {
-      if (item->submenu()->parent != this) item->submenu()->parent = this;
-      int sbl = index / menu.persub, i = index - (sbl * menu.persub),
-	    x = menu.x +
-		((menu.item_w * (sbl + 1)) + screen->getBorderWidth()), y;
-    
-      if (alignment == AlignTop)
-	y = (((shifted) ? menu.y_shift : menu.y) +
-	     ((title_vis) ? menu.title_h + screen->getBorderWidth() : 0) -
-	     ((item->submenu()->title_vis) ?
-	      item->submenu()->menu.title_h + screen->getBorderWidth() : 0));
-      else
-	y = (((shifted) ? menu.y_shift : menu.y) +
-	     (menu.item_h * i) +
-	     ((title_vis) ? menu.title_h + screen->getBorderWidth() : 0) -
-	     ((item->submenu()->title_vis) ?
-	      item->submenu()->menu.title_h + screen->getBorderWidth() : 0));
-
-      if (alignment == AlignBottom &&
-	  (y + item->submenu()->menu.height) > ((shifted) ? menu.y_shift :
-						menu.y) + menu.height)
-	y = (((shifted) ? menu.y_shift : menu.y) +
-	     menu.height - item->submenu()->menu.height);
-
-      if ((x + item->submenu()->getWidth()) > screen->getWidth()) {
-	x = ((shifted) ? menu.x_shift : menu.x) -
-	    item->submenu()->getWidth() - screen->getBorderWidth();
-      }
-      
-      if (x < 0) x = 0;
-
-      if ((y + item->submenu()->getHeight()) > screen->getHeight())
-	y = screen->getHeight() - item->submenu()->getHeight() -
-	    (screen->getBorderWidth() * 2);
-      if (y < 0) y = 0;
-      
-      item->submenu()->move(x, y);
-      if (! moving) drawItem(index, True);
-    
-      if (! item->submenu()->isVisible())
-	item->submenu()->show();
-      item->submenu()->moving = moving;
-      which_sub = index;
-    } else {
-      which_sub = -1;
-    }
-  }
-}
-
-
-Bool Basemenu::hasSubmenu(int index) {
-  if ((index >= 0) && (index < menuitems->count()))
-    if (menuitems->find(index)->submenu())
-      return True;
-
-  return False;
-}
-
-
-void Basemenu::drawItem(int index, Bool highlight, Bool clear,
-			int x, int y, unsigned int w, unsigned int h)
+Basemenu::Basemenu(int scr)
+  : Widget(scr, Popup), timer(BaseDisplay::instance(), &timeout),
+    title_pixmap(0), frame_pixmap(0), highlight_pixmap(0),
+    parent_menu(0), current_submenu(0),
+    motion(0), rows(0), cols(0), itemw(0), indent(0), active_item(-1),
+    show_title(false), size_dirty(true),
+    pressed(false), title_pressed(false), auto_delete(true)
 {
-  if (index < 0 || index > menuitems->count()) return;
+  // 100ms delay until popupmenus are shown when using the mouse
+  timer.setTimeout(100l);
+}
 
-  BasemenuItem *item = menuitems->find(index);
-  if (! item) return;
-  
-  Bool dotext = True, dohilite = True, dosel = True;
-  const char *text = (item->ulabel()) ? *item->ulabel() : item->label();
-  int sbl = index / menu.persub, i = index - (sbl * menu.persub);
-  int item_x = (sbl * menu.item_w), item_y = (i * menu.item_h);
-  int hilite_x = item_x, hilite_y = item_y, hoff_x = 0, hoff_y = 0;
-  int text_x = 0, text_y = 0, len = strlen(text), sel_x = 0, sel_y = 0;
-  unsigned int hilite_w = menu.item_w, hilite_h = menu.item_h, text_w = 0,
-    text_h = 0;
-  unsigned int half_w = menu.item_h / 2, quarter_w = menu.item_h / 4;
-  
-  if (text) {
-    if (i18n->multibyte()) {
+Basemenu::~Basemenu()
+{
+  clear();
+}
+
+void Basemenu::drawTitle()
+{
+  BStyle *style = Blackbox::instance()->screen(screenNumber())->style();
+
+  int dx = 1;
+  int l;
+  if (i18n.multibyte()) {
+    XRectangle ink, logical;
+    XmbTextExtents(style->menuTitleFontSet(), title().c_str(), title().length(),
+                    &ink, &logical);
+    l = logical.width;
+  } else
+    l = XTextWidth(style->menuTitleFont(), title().c_str(), title().length());
+  l += 2;
+
+  switch (style->menuTitleJustify()) {
+  case BStyle::Left:
+    dx += indent;
+    break;
+
+  case BStyle::Right:
+    dx += title_rect.width() - l - indent;
+    break;
+
+  case BStyle::Center:
+    dx += (title_rect.width() - l) / 2;
+    break;
+  }
+
+  BGCCache::Item &gc = BGCCache::instance()->find(style->menuTitleTextColor(),
+                                                   style->menuTitleFont());
+  if (i18n.multibyte())
+    XmbDrawString(*BaseDisplay::instance(), windowID(), style->menuTitleFontSet(),
+                   gc.gc(), title_rect.x() + dx, title_rect.y() +
+                   (style->bevelWidth() -
+                     style->menuTitleFontSetExtents()->max_ink_extent.y),
+                   title().c_str(), title().length());
+  else
+    XDrawString(*BaseDisplay::instance(), windowID(), gc.gc(),
+                 title_rect.x() + dx, title_rect.y() +
+                 (style->menuTitleFont()->ascent + style->bevelWidth()),
+                 title().c_str(), title().length());
+  BGCCache::instance()->release(gc);
+}
+
+void Basemenu::drawItem(const Rect &r, const Item &item)
+{
+  BaseDisplay *display = BaseDisplay::instance();
+  BGCCache *cache = BGCCache::instance();
+  BStyle *style = Blackbox::instance()->screen(screenNumber())->style();
+
+  if (item.isSeparator()) {
+    BGCCache::Item &gc = cache->find(style->menuTextColor());
+    XFillRectangle(*display, windowID(), gc.gc(),
+                    r.x() + indent / 2, r.y() + style->bevelWidth(),
+                    r.width() - indent, r.height() - (style->bevelWidth() * 2));
+    cache->release(gc);
+    return;
+  }
+
+  int dx = 1;
+  int l;
+  if (i18n.multibyte()) {
+    XRectangle ink, logical;
+    XmbTextExtents(style->menuFontSet(), item.label().c_str(),
+                    item.label().length(), &ink, &logical);
+    l = logical.width;
+  } else
+    l = XTextWidth(style->menuFont(), item.label().c_str(),
+                    item.label().length());
+  l += 2;
+
+  switch (style->menuJustify()) {
+  case BStyle::Left:
+    dx += indent;
+    break;
+
+  case BStyle::Right:
+    dx += r.width() - l - indent;
+    break;
+
+  case BStyle::Center:
+    dx += (r.width() - l) / 2;
+    break;
+  }
+
+  if (item.isActive()) {
+    BGCCache::Item &gc = cache->find(style->menuHighlight().color());
+    if ( highlight_pixmap)
+      XCopyArea(*display, highlight_pixmap, windowID(), gc.gc(),
+                 0, 0, r.width(), r.height(), r.x(), r.y());
+    else
+      XFillRectangle(*display, windowID(), gc.gc(),
+                      r.x(), r.y(), r.width(), r.height());
+    cache->release(gc);
+  }
+
+  BGCCache::Item &gc =
+    cache->find((item.isActive() ? style->menuHighlightTextColor() :
+                   item.isEnabled() ? style->menuTextColor() :
+                   style->menuDisabledTextColor()), style->menuFont());
+
+  if (i18n.multibyte())
+    XmbDrawString(*display, windowID(), style->menuFontSet(), gc.gc(),
+                   r.x() + dx, r.y() + (style->bevelWidth() -
+                                         style->menuFontSetExtents()->max_ink_extent.y),
+                   item.label().c_str(), item.label().length());
+  else
+    XDrawString(*display, windowID(), gc.gc(),
+                 r.x() + dx, r.y() + (style->menuFont()->ascent +
+                                       style->bevelWidth()),
+                 item.label().c_str(), item.label().length());
+
+  if (item.isChecked()) {
+    // draw check mark
+    int cx = r.x() + (indent - 7) / 2;
+    int cy = r.y() + (indent - 7) / 2;
+    XSetClipMask(*display, gc.gc(), style->checkBitmap());
+    XSetClipOrigin(*display, gc.gc(), cx, cy);
+    XFillRectangle(*display, windowID(), gc.gc(), cx, cy, 7, 7);
+    XSetClipOrigin(*display, gc.gc(), 0, 0);
+    XSetClipMask(*display, gc.gc(), None);
+  }
+
+  if (item.submenu()) {
+    // draw submenu arrow
+    int ax = r.x() + r.width() - indent + (indent - 7) / 2;
+    int ay = r.y() + (indent - 7) / 2;
+    XSetClipMask(*display, gc.gc(), style->arrowBitmap());
+    XSetClipOrigin(*display, gc.gc(), ax, ay);
+    XFillRectangle(*display, windowID(), gc.gc(), ax, ay, 7, 7);
+    XSetClipOrigin(*display, gc.gc(), 0, 0);
+    XSetClipMask(*display, gc.gc(), None);
+  }
+
+  cache->release(gc);
+}
+
+void Basemenu::clickActiveItem()
+{
+  if (active_item < 0 && active_item > count())
+    return;
+
+  Items::const_iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot find item, internal error\n");
+      return;
+    }
+    it++;
+  }
+
+  Rect r;
+  bool do_hide = true;
+  bool once = true;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (it != items.end()) {
+    const Item &item = (*it++);
+    r.setRect(x, y, itemw, item.height);
+
+    if (item.index() == active_item && once) {
+      if (item.isEnabled())
+        itemClicked(item, 1);
+      if (item.submenu())
+        do_hide = false;
+      once = false;
+    }
+
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+
+  if (do_hide)
+    hideAll();
+}
+
+int Basemenu::lookupItem(const string &lookup)
+{
+  Items::const_iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot find item, internal error\n");
+      return -1;
+    }
+    it++;
+  }
+
+  int first_index = -1;
+  while (it != items.end()) {
+    const Item &item = (*it++);
+
+    if (item.label().compare(lookup, 0, lookup.length()) == 0) {
+      if (first_index == -1)
+        first_index = item.index();
+      if (item.index() > active_item) // found one!
+        return item.index();
+    }
+  }
+
+  return first_index;
+}
+
+void Basemenu::updateSize()
+{
+  int w = 0, h = 0, iw;
+  int index, titleh, itemh, colh = 0, maxcolh = 0;
+
+  ScreenInfo *scr = BaseDisplay::instance()->screenInfo(screenNumber());
+  BStyle *style = Blackbox::instance()->screen(screenNumber())->style();
+  if (i18n.multibyte()) {
+    maxcolh = itemh = style->menuFontSetExtents()->max_ink_extent.height +
+              style->bevelWidth() * 2;
+    titleh = style->menuTitleFontSetExtents()->max_ink_extent.height +
+             style->bevelWidth() * 2;
+  } else {
+    maxcolh = itemh = style->menuFont()->ascent + style->menuFont()->descent +
+              style->bevelWidth() * 2;
+    titleh = style->menuTitleFont()->ascent + style->menuTitleFont()->descent +
+             style->bevelWidth() * 2;
+  }
+
+  indent = itemh;
+  h = style->borderWidth();
+
+  Items::iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot update size, internal error\n");
+      return;
+    }
+
+    Item &item = *it++;
+
+    if (i18n.multibyte()) {
       XRectangle ink, logical;
-      XmbTextExtents(screen->getMenuStyle()->f_fontset,
-		     text, len, &ink, &logical);
-      text_w = logical.width;
-      text_y = item_y + (menu.bevel_w / 2) -
-	       screen->getMenuStyle()->f_fontset_extents->max_ink_extent.y;
+      XmbTextExtents(style->menuTitleFontSet(), item.label().c_str(),
+                     item.label().length(), &ink, &logical);
+      logical.width += style->bevelWidth() * 2;
+      iw = int(logical.width);
+    } else
+      iw = XTextWidth(style->menuTitleFont(), item.label().c_str(),
+                      item.label().length()) + style->bevelWidth() * 2;
+
+    iw += indent + indent;
+    item.height = titleh;
+    item.idx = -1;
+
+    w = std::max(w, iw);
+    h += item.height;
+    h += style->borderWidth();
+  }
+
+  rows = 0;
+  cols = 1;
+  index = 0;
+
+  while (it != items.end()) {
+    Item &item = *it++;
+
+    item.idx = index++;
+
+    if (item.isSeparator()) {
+      iw = 80;
+      item.height = (style->borderWidth() > 0 ? style->borderWidth() : 1) +
+                    (style->bevelWidth() * 2);
     } else {
-      text_w = XTextWidth(screen->getMenuStyle()->f_font, text, len);
-      text_y =  item_y +
-		screen->getMenuStyle()->f_font->ascent +
-		(menu.bevel_w / 2);
+      if (i18n.multibyte()) {
+        XRectangle ink, logical;
+        XmbTextExtents(style->menuFontSet(), item.label().c_str(),
+                       item.label().length(), &ink, &logical);
+        logical.width += style->bevelWidth() * 2;
+        iw = std::max(w, int(logical.width));
+      } else
+        iw = XTextWidth(style->menuFont(), item.label().c_str(),
+                        item.label().length()) + style->bevelWidth() * 2;
+
+      iw += indent + indent;
+      item.height = itemh;
     }
-    
-    switch(screen->getMenuStyle()->f_justify) {
-    case BScreen::LeftJustify:
-      text_x = item_x + menu.bevel_w + menu.item_h + 1;
-      break;
-      
-    case BScreen::RightJustify:
-      text_x = item_x + menu.item_w - (menu.item_h + menu.bevel_w + text_w);
-      break;
-      
-    case BScreen::CenterJustify:
-      text_x = item_x + ((menu.item_w + 1 - text_w) / 2);
-      break;
-    }
-    
-    text_h = menu.item_h - menu.bevel_w;
-  }
-  
-  GC gc =
-    ((highlight || item->isSelected()) ? screen->getMenuStyle()->h_text_gc :
-     screen->getMenuStyle()->f_text_gc),
-    tgc =
-    ((highlight) ? screen->getMenuStyle()->h_text_gc :
-     ((item->isEnabled()) ? screen->getMenuStyle()->f_text_gc :
-      screen->getMenuStyle()->d_text_gc));
-  
-  sel_x = item_x;
-  if (screen->getMenuStyle()->bullet_pos == Right)
-    sel_x += (menu.item_w - menu.item_h - menu.bevel_w);
-  sel_x += quarter_w;
-  sel_y = item_y + quarter_w;
-  
-  if (clear) {
-    XClearArea(display, menu.frame, item_x, item_y, menu.item_w, menu.item_h,
-	       False);
-  } else if (! (x == y && y == -1 && w == h && h == 0)) {
-    // calculate the which part of the hilite to redraw
-    if (! (max(item_x, x) <= (signed) min(item_x + menu.item_w, x + w) &&
-	   max(item_y, y) <= (signed) min(item_y + menu.item_h, y + h))) {
-      dohilite = False;
-    } else {
-      hilite_x = max(item_x, x);
-      hilite_y = max(item_y, y);
-      hilite_w = min(item_x + menu.item_w, x + w) - hilite_x;
-      hilite_h = min(item_y + menu.item_h, y + h) - hilite_y;
-      hoff_x = hilite_x % menu.item_w;
-      hoff_y = hilite_y % menu.item_h;
-    }
-    
-    // check if we need to redraw the text    
-    int text_ry = item_y + (menu.bevel_w / 2);
-    if (! (max(text_x, x) <= (signed) min(text_x + text_w, x + w) &&
-	   max(text_ry, y) <= (signed) min(text_ry + text_h, y + h)))
-      dotext = False;
-    
-    // check if we need to redraw the select pixmap/menu bullet
-    if (! (max(sel_x, x) <= (signed) min(sel_x + half_w, x + w) &&
-	   max(sel_y, y) <= (signed) min(sel_y + half_w, y + h)))
-      dosel = False;
-  }
-  
-  if (dohilite && highlight && (menu.hilite_pixmap != ParentRelative)) {
-    if (menu.hilite_pixmap)
-      XCopyArea(display, menu.hilite_pixmap, menu.frame,
-		screen->getMenuStyle()->hilite_gc, hoff_x, hoff_y,
-		hilite_w, hilite_h, hilite_x, hilite_y);
-    else
-      XFillRectangle(display, menu.frame,
-		     screen->getMenuStyle()->hilite_gc,
-		     hilite_x, hilite_y, hilite_w, hilite_h);
-  } else if (dosel && item->isSelected() &&
-	                 (menu.sel_pixmap != ParentRelative)) {
-    if (menu.sel_pixmap)
-      XCopyArea(display, menu.sel_pixmap, menu.frame,
-		screen->getMenuStyle()->hilite_gc, 0, 0,
-		half_w, half_w, sel_x, sel_y);
-    else
-      XFillRectangle(display, menu.frame,
-		     screen->getMenuStyle()->hilite_gc,
-		     sel_x, sel_y, half_w, half_w);
-  }
-  
-  if (dotext && text) {
-    if (i18n->multibyte())
-      XmbDrawString(display, menu.frame, screen->getMenuStyle()->f_fontset,
-		    tgc, text_x, text_y, text, len);
-    else
-      XDrawString(display, menu.frame, tgc, text_x, text_y, text, len);
-  }
 
-  if (dosel && item->submenu()) {
-    switch (screen->getMenuStyle()->bullet) {
-    case Square:
-      XDrawRectangle(display, menu.frame, gc, sel_x, sel_y, half_w, half_w);
-      break;
+    w = std::max(w, iw);
+    colh += item.height;
+    rows++;
 
-    case Triangle:
-      XPoint tri[3];
-
-      if (screen->getMenuStyle()->bullet_pos == Right) {
-        tri[0].x = sel_x + quarter_w - 2;
-	tri[0].y = sel_y + quarter_w - 2;
-        tri[1].x = 4;
-	tri[1].y = 2;
-        tri[2].x = -4;
-	tri[2].y = 2;
-      } else {
-        tri[0].x = sel_x + quarter_w - 2;
-	tri[0].y = item_y + half_w;
-        tri[1].x = 4;
-	tri[1].y = 2;
-        tri[2].x = 0;
-	tri[2].y = -4;
-      }
-      
-      XFillPolygon(display, menu.frame, gc, tri, 3, Convex,
-                   CoordModePrevious);
-      break;
-      
-    case Diamond:
-      XPoint dia[4];
-
-      dia[0].x = sel_x + quarter_w - 3;
-      dia[0].y = item_y + half_w;
-      dia[1].x = 3;
-      dia[1].y = -3;
-      dia[2].x = 3;
-      dia[2].y = 3;
-      dia[3].x = -3;
-      dia[3].y = 3;
-
-      XFillPolygon(display, menu.frame, gc, dia, 4, Convex,
-                   CoordModePrevious);
-      break;
+    if (colh > scr->height() * 3 / 4) {
+      maxcolh = std::max(maxcolh, colh);
+      colh = 0;
+      cols++;
+      rows = 0;
     }
   }
-}
 
+  // if we just changed to a new column, but have no items, then remove the empty
+  // column
+  if (cols > 1 && colh == 0 && rows == 0)
+    cols--;
 
-void Basemenu::setLabel(const char *l) {
-  if (menu.label)
-    delete [] menu.label;
+  if (w < 80)
+    w = 80;
 
-  if (l) menu.label = bstrdup(l);
-  else menu.label = 0;
-}
+  maxcolh = std::max(maxcolh, colh);
+  maxcolh += style->bevelWidth() * 2;
+  h += maxcolh + style->borderWidth();
 
+  itemw = w;
+  w *= cols;
+  w += style->bevelWidth() * 2;
+  w += style->borderWidth() * 2;
 
-void Basemenu::setItemSelected(int index, Bool sel) {
-  if (index < 0 || index >= menuitems->count()) return;
-
-  BasemenuItem *item = find(index);
-  if (! item) return;
-
-  item->setSelected(sel);
-  if (visible) drawItem(index, (index == which_sub), True);
-}
-
-
-Bool Basemenu::isItemSelected(int index) {
-  if (index < 0 || index >= menuitems->count()) return False;
-
-  BasemenuItem *item = find(index);
-  if (! item) return False;
-
-  return item->isSelected();
-}
-
-
-void Basemenu::setItemEnabled(int index, Bool enable) {
-  if (index < 0 || index >= menuitems->count()) return;
-
-  BasemenuItem *item = find(index);
-  if (! item) return;
-
-  item->setEnabled(enable);
-  if (visible) drawItem(index, (index == which_sub), True);
-}
-
-
-Bool Basemenu::isItemEnabled(int index) {
-  if (index < 0 || index >= menuitems->count()) return False;
-
-  BasemenuItem *item = find(index);
-  if (! item) return False;
-
-  return item->isEnabled();
-}
-
-
-void Basemenu::buttonPressEvent(XButtonEvent *be) {
-  if (be->window == menu.frame) {
-    int sbl = (be->x / menu.item_w), i = (be->y / menu.item_h);
-    int w = (sbl * menu.persub) + i;
-
-    if (w < menuitems->count() && w >= 0) {
-      which_press = i;
-      which_sbl = sbl;
-
-      BasemenuItem *item = menuitems->find(w);
-
-      if (item->submenu())
-	drawSubmenu(w);
-      else
-	drawItem(w, (item->isEnabled()), True);
+  if (show_title) {
+    Rect tr(style->borderWidth(), style->borderWidth(),
+            w - style->borderWidth() * 2, titleh);
+    Rect fr(style->borderWidth(), titleh + style->borderWidth() * 2,
+            w - style->borderWidth() * 2, h - titleh - style->borderWidth() * 3);
+    Rect ir(fr.x() + style->bevelWidth(), fr.y() + style->bevelWidth(),
+            fr.width() - style->bevelWidth() * 2,
+            fr.height() - style->bevelWidth() * 2);
+    if (tr != title_rect || ! title_pixmap) {
+      title_rect = tr;
+      title_pixmap = style->menuTitle().render(title_rect.size(), title_pixmap);
+    }
+    if (fr != frame_rect || ! frame_pixmap) {
+      frame_rect = fr;
+      frame_pixmap = style->menu().render(frame_rect.size(), frame_pixmap);
+      highlight_pixmap = style->menuHighlight().render(Size(itemw, itemh),
+                                                       highlight_pixmap);
+    }
+    if (ir != items_rect) {
+      items_rect = ir;
     }
   } else {
-    menu.x_move = be->x_root - menu.x;
-    menu.y_move = be->y_root - menu.y;
+    Rect fr(style->borderWidth(), style->borderWidth(),
+            w - style->borderWidth() * 2, h - style->borderWidth() * 2);
+    Rect ir(fr.x() + style->bevelWidth(), fr.y() + style->bevelWidth(),
+            fr.width() - style->bevelWidth() * 2,
+            fr.height() - style->bevelWidth() * 2);
+    if (fr != frame_rect || ! frame_pixmap) {
+      frame_rect = fr;
+      frame_pixmap = style->menu().render(frame_rect.size(), frame_pixmap);
+      highlight_pixmap = style->menuHighlight().render(Size(itemw, itemh),
+                                                       highlight_pixmap);
+    }
+    if (ir != items_rect) {
+      items_rect = ir;
+    }
   }
+
+  Size sz(w, h);
+  if (sz != size())
+    resize(sz);
+  size_dirty = false;
 }
 
+void Basemenu::reconfigure()
+{
+  Items::iterator it = items.begin();
+  while (it != items.end()) {
+    if ((*it).submenu())
+      (*it).submenu()->reconfigure();
+    it++;
+  }
 
-void Basemenu::buttonReleaseEvent(XButtonEvent *re) {
-  if (re->window == menu.title) {
-    if (moving) {
-      moving = False;
-      
-      if (which_sub != -1)
-	drawSubmenu(which_sub);
-    }
-    
-    if (re->x >= 0 && re->x <= (signed) menu.width &&
-	re->y >= 0 && re->y <= (signed) menu.title_h)
-      if (re->button == 3)
-	hide();
-  } else if (re->window == menu.frame &&
-	     re->x >= 0 && re->x < (signed) menu.width &&
-	     re->y >= 0 && re->y < (signed) menu.frame_h) {
-    if (re->button == 3) {
-      hide();
+  title_rect = items_rect = frame_rect = Rect(0, 0, 1, 1);
+  size_dirty = true;
+  updateSize();
+  if (isVisible())
+    XClearArea(*BaseDisplay::instance(), windowID(),
+                x(), y(), width(), height(), True);
+}
+
+void Basemenu::popup(int x, int y, bool centerOnTitle)
+{
+  motion = 0;
+
+  // let dynamic menus do any needed inserts/changes/removes before we call
+  // updateSize()
+  refresh();
+
+  if (size_dirty)
+    updateSize();
+
+  ScreenInfo *scr = BaseDisplay::instance()->screenInfo(screenNumber());
+  BStyle *style = Blackbox::instance()->screen(screenNumber())->style();
+  if (show_title) {
+    if (centerOnTitle) {
+      // if the title is visible, center it around the popup point
+      Point p = Point(x, y) - title_rect.pos() -
+                Point(title_rect.width() / 2, title_rect.height() / 2);
+      x = p.x();
+      y = p.y();
+      if (y + height() > scr->height())
+        y -= frame_rect.height() + title_rect.height() / 2 +
+             style->borderWidth() * 2;
+      if (y < 0)
+        y = 0;
+      if (x + width() > scr->width())
+        x = scr->width() - width();
+      if (x < 0)
+        x = 0;
     } else {
-      int sbl = (re->x / menu.item_w), i = (re->y / menu.item_h),
-	   ix = sbl * menu.item_w, iy = i * menu.item_h,
-	    w = (sbl * menu.persub) + i,
-	    p = (which_sbl * menu.persub) + which_press;
-
-      if (w < menuitems->count() && w >= 0) {
-	drawItem(p, (p == which_sub), True);
-
-        if  (p == w && isItemEnabled(w)) {
-	  if (re->x > ix && re->x < (signed) (ix + menu.item_w) &&
-	      re->y > iy && re->y < (signed) (iy + menu.item_h)) {
-	    itemSelected(re->button, w);
-	  }
-        }
-      } else
-        drawItem(p, False, True);
+      y -= title_rect.y() + title_rect.height();
+      if (y + height() > scr->height())
+        y -= frame_rect.height();
+      if (y < 0)
+        y = 0;
+      if (x + width() > scr->width())
+        x -= frame_rect.width();
+      if (x < 0)
+        x = 0;
     }
+  } else {
+    if (y + height() > scr->height())
+      y -= height();
+    if (y < 0)
+      y = 0;
+    if (x + width() > scr->width())
+      x -= width();
+    if (x < 0)
+      x = 0;
   }
+
+  move(x, y);
+  show();
 }
 
+void Basemenu::popup(const Point &p, bool centerOnTitle)
+{
+  popup(p.x(), p.y(), centerOnTitle);
+}
 
-void Basemenu::motionNotifyEvent(XMotionEvent *me) {
-  if (me->window == menu.title && (me->state & Button1Mask)) {
-    if (movable) {
-      if (! moving) {
-	if (parent && (! torn)) {
-	  parent->drawItem(parent->which_sub, False, True);
-	  parent->which_sub = -1;
-	}
+void Basemenu::hide()
+{
+  if (current_submenu && current_submenu->isVisible())
+    current_submenu->hide();
+  current_submenu = 0;
+  timeout.menu = 0;
+  timer.stop();
 
-        moving = torn = True;
-
-	if (which_sub != -1)
-	  drawSubmenu(which_sub);
-      } else {
-	menu.x = me->x_root - menu.x_move,
-	menu.y = me->y_root - menu.y_move;
-	
-	XMoveWindow(display, menu.window, menu.x, menu.y);
-	  
-	if (which_sub != -1)
-	  drawSubmenu(which_sub);
-      }
+  Items::iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()){
+      // internal error
+      fprintf(stderr, "Basemenu: cannot track active item, internal error\n");
+      return;
     }
-  } else if ((! (me->state & Button1Mask)) && me->window == menu.frame &&
-	     me->x >= 0 && me->x < (signed) menu.width &&
-	     me->y >= 0 && me->y < (signed) menu.frame_h) {
-    int sbl = (me->x / menu.item_w), i = (me->y / menu.item_h),
-	  w = (sbl * menu.persub) + i;
 
-    if ((i != which_press || sbl != which_sbl) &&
-	(w < menuitems->count() && w >= 0)) {
-      if (which_press != -1 && which_sbl != -1) {
-	int p = (which_sbl * menu.persub) + which_press;
-	BasemenuItem *item = menuitems->find(p);
+    it++;
+  }
 
-	drawItem(p, False, True);
-	if (item->submenu())
-	  if (item->submenu()->isVisible() &&
-	      (! item->submenu()->isTorn())) {
-	    item->submenu()->internal_hide();
-	    which_sub = -1;
-	  }
+  Rect r;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (it != items.end()) {
+    Item &item = (*it++);
+    r.setRect(x, y, itemw, item.height);
+
+    if (item.active) {
+      item.active = false;
+      break;
+    }
+
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+
+  active_item = -1;
+
+  Widget::hide();
+}
+
+void Basemenu::hideAll()
+{
+  if (parent_menu && parent_menu->isVisible())
+    parent_menu->hideAll();
+  else
+    hide();
+}
+
+int Basemenu::insert(const string &label, const Item &item, int index)
+{
+  Items::iterator it;
+
+  if (index >= 0) {
+    it = items.begin();
+
+    if (show_title) {
+      if (it == items.end()) {
+        // internal error
+        fprintf(stderr, "Basemenu: cannot insert item, internal error\n");
+        return -1;
       }
 
-      which_press = i;
-      which_sbl = sbl;
+      it++;
+    }
 
-      BasemenuItem *itmp = menuitems->find(w);
+    int i = 0;
+    while (i++ < index && it != items.end())
+      it++;
+    index = i;
+  } else {
+    // append
+    it = items.end();
+    index = items.size();
+  }
 
-      if (itmp->submenu())
-	drawSubmenu(w);
+  it = items.insert(it, item);
+  (*it).lbl = label;
+  if ((*it).submenu())
+    (*it).submenu()->parent_menu = this;
+
+  if (isVisible()) {
+    updateSize();
+    XClearArea(*BaseDisplay::instance(), windowID(),
+                x(), y(), width(), height(), True);
+  } else
+    size_dirty = true;
+
+  return index;
+}
+
+void Basemenu::change(int index,
+			const string &label,
+			const Item &item)
+{
+  Items::iterator it = items.begin();
+
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot change item, internal error\n");
+      return;
+    }
+
+    it++;
+  }
+
+  int i = 0;
+  while (i++ < index) {
+    if (it == items.end()) {
+      // index is out of range
+      fprintf(stderr, "Basemenu: cannot change item %d, index out of range\n",
+               index);
+      return;
+    }
+
+    it++;
+  }
+
+  if (! item.def) {
+    // remove old submenu if there is one...
+    if ((*it).submenu()) {
+      // ... and delete it if necessary
+      if ((*it).submenu()->autoDelete())
+        delete (*it).submenu();
       else
-	drawItem(w, (itmp->isEnabled()), True);
+        (*it).submenu()->parent_menu = 0;
+      (*it).sub = 0;
+    }
+
+    (*it) = item;
+  }
+  (*it).lbl = label;
+  if ((*it).submenu())
+    (*it).submenu()->parent_menu = this;
+
+  if (isVisible()) {
+    updateSize();
+    XClearArea(*BaseDisplay::instance(), windowID(),
+                x(), y(), width(), height(), True);
+  } else
+    size_dirty = true;
+}
+
+void Basemenu::remove(int index)
+{
+  Items::iterator it = items.begin();
+
+  if (show_title) {
+    if (it == items.end()) {
+      // index is out of range
+      fprintf(stderr, "Basemenu: cannot remove item, internal error\n");
+      return;
+    }
+
+    it++;
+  }
+
+  int i = 0;
+  while (i++ < index) {
+    if (it == items.end()) {
+      // index is out of range
+      fprintf(stderr, "Basemenu: cannot remove item %d, index out of range\n",
+               index);
+      return;
+    }
+
+    it++;
+  }
+
+  if (it == items.end()) {
+    // index is out of range
+    fprintf(stderr, "Basemenu: cannot remove item %d, index out of range\n",
+             index);
+    return;
+  }
+
+  if ((*it).submenu()) {
+    if ((*it).submenu()->autoDelete())
+      delete (*it).submenu();
+    else
+      (*it).submenu()->parent_menu = 0;
+    (*it).sub = 0;
+  }
+  items.erase(it);
+
+  if (isVisible()) {
+    updateSize();
+    XClearArea(*BaseDisplay::instance(), windowID(),
+                x(), y(), width(), height(), True);
+  } else
+    size_dirty = true;
+}
+
+void Basemenu::clear()
+{
+  while (count() > 0)
+    remove(0);
+}
+
+bool Basemenu::isItemEnabled(int index) const
+{
+  Items::const_iterator it = items.begin();
+
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot find item, internal error\n");
+      return false;
+    }
+
+    it++;
+  }
+
+  int i = 0;
+  while (i++ < index) {
+    if (it == items.end()) {
+      // index is out of range
+      fprintf(stderr, "Basemenu: cannot find item %d, index out of range\n",
+               index);
+      return false;
+    }
+
+    it++;
+  }
+
+  return (*it).isEnabled();
+}
+
+void Basemenu::setItemEnabled(int index, bool enabled)
+{
+  Items::iterator it = items.begin();
+
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot find item, internal error\n");
+      return;
+    }
+
+    it++;
+  }
+
+  Rect r;
+  int i = 0;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (i++ < index) {
+    if (it == items.end()) {
+      // index is out of range
+      fprintf(stderr, "Basemenu: cannot find item %d, index out of range\n",
+               index);
+      return;
+    }
+
+    Item &item = *it++;
+    r.setRect(x, y, itemw, item.height);
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+
+  if (it == items.end()) {
+    // index is out of range
+    fprintf(stderr, "Basemenu: cannot find item %d, index out of range\n",
+             index);
+    return;
+  }
+
+  (*it).enable = enabled;
+  if (isVisible()) {
+     XClearArea(*BaseDisplay::instance(), windowID(),
+                  r.x(), r.y(), r.width(), r.height(), True);
+  }
+}
+
+bool Basemenu::isItemChecked(int index) const
+{
+  Items::const_iterator it = items.begin();
+
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot find item, internal error\n");
+      return false;
+    }
+
+    it++;
+  }
+
+  int i = 0;
+  while (i++ < index) {
+    if (it == items.end()) {
+      // index is out of range
+      fprintf(stderr, "Basemenu: cannot find item %d, index out of range\n",
+               index);
+      return false;
+    }
+
+    it++;
+  }
+
+  if (it == items.end()) {
+    // index is out of range
+    fprintf(stderr, "Basemenu: cannot find item %d, index out of range\n",
+             index);
+    return false;
+  }
+
+  return (*it).isChecked();
+}
+
+void Basemenu::setItemChecked(int index, bool check)
+{
+  Items::iterator it = items.begin();
+
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot find item, internal error\n");
+      return;
+    }
+
+    it++;
+  }
+
+  Rect r;
+  int i = 0;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (i++ < index) {
+    if (it == items.end()) {
+      // index is out of range
+      fprintf(stderr, "Basemenu: cannot find item %d, index out of range\n",
+               index);
+      return;
+    }
+
+    Item &item = *it++;
+    r.setRect(x, y, itemw, item.height);
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+
+  if (it == items.end()) {
+    // index is out of range
+    fprintf(stderr, "Basemenu: cannot find item %d, index out of range\n",
+             index);
+    return;
+  }
+
+  (*it).checked = check;
+  if (isVisible()) {
+    XClearArea(*BaseDisplay::instance(), windowID(),
+                r.x(), r.y(), r.width(), r.height(), True);
+  }
+}
+
+void Basemenu::showTitle()
+{
+  if (show_title)
+    return;
+
+  Item item;
+  item.lbl = title();
+  item.title = true;
+  items.insert(items.begin(), item);
+
+  show_title = true;
+
+  if (isVisible()) {
+    updateSize();
+    XClearArea(*BaseDisplay::instance(), windowID(),
+                x(), y(), width(), height(), True);
+  } else
+    size_dirty = true;
+}
+
+void Basemenu::hideTitle()
+{
+  if (! show_title)
+    return;
+
+  items.erase(items.begin());
+
+  show_title = false;
+
+  if (isVisible()) {
+    updateSize();
+    XClearArea(*BaseDisplay::instance(), windowID(),
+                x(), y(), width(), height(), True);
+  } else
+    size_dirty = true;
+}
+
+void Basemenu::setActiveItem(int index)
+{
+  if (index == active_item)
+    return;
+
+  BaseDisplay *display = BaseDisplay::instance();
+
+  Items::iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot find item, internal error\n");
+      return;
+    }
+    it++;
+  }
+
+  Rect r;
+  int old_active_item = active_item;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (it != items.end()) {
+    Item &item = (*it++);
+    r.setRect(x, y, itemw, item.height);
+
+    if (index != -1 && item.index() == index) {
+      XClearArea(*display, windowID(), x, y, itemw, item.height, True);
+      active_item = item.index();
+      item.active = item.isEnabled();
+      if (old_active_item == -1) // no old item to unset, so we are done
+        break;
+    }
+
+    if (old_active_item != -1 && item.index() == old_active_item) {
+      XClearArea(*display, windowID(), x, y, itemw, item.height, True);
+      item.active = false;
+      if (index == -1) // no active item to set, so we are done
+        break;
+    }
+
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
     }
   }
 }
 
+void Basemenu::setActiveItem(const Rect &r, Item &item, bool delayMenu)
+{
+  if (item.active) {
+    if (current_submenu && current_submenu == item.submenu() &&
+        current_submenu == timeout.menu) {
+      if (delayMenu && ! timer.isTiming()) {
+        timer.start();
+      } else if (! delayMenu && ! current_submenu->isVisible()) {
+        current_submenu->show();
+      }
+    }
+    return;
+  }
 
-void Basemenu::exposeEvent(XExposeEvent *ee) {
-  if (ee->window == menu.title) {
-    redrawTitle();
-  } else if (ee->window == menu.frame) {
-    // this is a compilicated algorithm... lets do it step by step...
-    // first... we see in which sub level the expose starts... and how many
-    // items down in that sublevel
+  item.active = item.isEnabled();
+  active_item = item.index();
+  drawItem(r, item);
+  showSubmenu(r, item, delayMenu);
+}
 
-    int sbl = (ee->x / menu.item_w), id = (ee->y / menu.item_h),
-      // next... figure out how many sublevels over the redraw spans
-      sbl_d = ((ee->x + ee->width) / menu.item_w),
-      // then we see how many items down to redraw
-      id_d = ((ee->y + ee->height) / menu.item_h);
+void Basemenu::showActiveSubmenu()
+{
+  if (active_item < 0 && active_item > count())
+    return;
 
-    if (id_d > menu.persub) id_d = menu.persub;
+  Items::const_iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()) {
+      // internal error
+      fprintf(stderr, "Basemenu: cannot find item, internal error\n");
+      return;
+    }
+    it++;
+  }
 
-    // draw the sublevels and the number of items the exposure spans
-    LinkedListIterator<BasemenuItem> it(menuitems);
-    int i, ii;
-    for (i = sbl; i <= sbl_d; i++) {
-      // set the iterator to the first item in the sublevel needing redrawing
-      it.set(id + (i * menu.persub));
-      for (ii = id; ii <= id_d && it.current(); it++, ii++) {
-	int index = ii + (i * menu.persub);
-	// redraw the item
-	drawItem(index, (which_sub == index), False,
-		 ee->x, ee->y, ee->width, ee->height);
+  Rect r;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (it != items.end()) {
+    const Item &item = (*it++);
+    r.setRect(x, y, itemw, item.height);
+
+    if (item.index() == active_item) {
+      showSubmenu(r, item, false);
+      if (current_submenu)
+        current_submenu->setActiveItem(0);
+      break;
+    }
+
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+}
+
+void Basemenu::showSubmenu(const Rect &r, const Item &item, bool delay)
+{
+  if (current_submenu && current_submenu->isVisible())
+    current_submenu->hide();
+  current_submenu = 0;
+  timeout.menu = 0;
+
+  if (! item.submenu())
+    return;
+
+  // let dynamic menus do any needed inserts/changes/removes before we call
+  // updateSize()
+  item.submenu()->refresh();
+
+  // position the submenu
+  if (item.submenu()->size_dirty)
+    item.submenu()->updateSize();
+
+  ScreenInfo *scr = BaseDisplay::instance()->screenInfo(screenNumber());
+  BStyle *style = Blackbox::instance()->screen(screenNumber())->style();
+
+  int px = x() + r.x() + r.width();
+  int py = y() + r.y() - style->borderWidth() - style->bevelWidth();
+  bool on_left = false;
+
+  if (parent_menu && parent_menu->isVisible() && parent_menu->x() > x())
+    on_left = true;
+  // move the submenu to the left side of the menu,
+  // where there is hopefully more space
+  if (px + item.submenu()->width() > scr->width() || on_left)
+    px -= item.submenu()->width() + r.width();
+  if (px < 0) {
+    if (on_left)
+      // wow, lots of nested menus - move submenus back to the right side
+      px = x() + r.x() + r.width();
+    else
+      px = 0;
+  }
+
+  if (item.submenu()->show_title)
+    py -= item.submenu()->title_rect.y() + item.submenu()->title_rect.height();
+  if (py + item.submenu()->height() > scr->height())
+    py -= item.submenu()->frame_rect.height() - r.height() -
+          style->borderWidth() - style->bevelWidth();
+  if (py < 0)
+    py = 0;
+
+  // show the submenu
+  current_submenu = item.submenu();
+  timeout.menu = current_submenu;
+
+  current_submenu->move(px, py);
+
+  if (delay) {
+    // delayed show...
+    timer.start();
+  } else
+    current_submenu->show();
+}
+
+void Basemenu::buttonPressEvent(XEvent *e)
+{
+  timer.stop();
+  if (! rect().contains(Point(e->xbutton.x_root, e->xbutton.y_root))) {
+    hideAll();
+    return;
+  }
+
+  pressed = true;
+
+  Point p(e->xbutton.x, e->xbutton.y);
+
+  if (title_rect.contains(p)) {
+    title_pressed = true;
+    return;
+  } else if (! items_rect.contains(p))
+    return;
+
+  Items::iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()){
+      // internal error
+      fprintf(stderr, "Basemenu: cannot track active item, internal error\n");
+      return;
+    }
+
+    it++;
+  }
+
+  Rect r;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (it != items.end()) {
+    Item &item = (*it++);
+    r.setRect(x, y, itemw, item.height);
+
+    if (r.contains(p)) {
+      setActiveItem(r, item, false);
+    } else if (item.active) {
+      item.active = false;
+      XClearArea(*BaseDisplay::instance(), windowID(),
+                  r.x(), r.y(), r.width(), r.height(), True);
+    }
+
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+}
+
+void Basemenu::buttonReleaseEvent(XEvent *e)
+{
+  timer.stop();
+  if (! pressed && motion < 5)
+    return;
+
+  pressed = false;
+
+  if (! rect().contains(Point(e->xbutton.x_root, e->xbutton.y_root))) {
+    hideAll();
+    return;
+  }
+
+  Point p(e->xbutton.x, e->xbutton.y);
+
+  if (title_rect.contains(p) && title_pressed) {
+    titleClicked(e->xbutton.button);
+    title_pressed = false;
+    return;
+  }
+
+  bool do_hide = true;
+
+  title_pressed = false;
+
+  Items::iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()){
+      // internal error
+      fprintf(stderr, "Basemenu: cannot track active item, internal error\n");
+      return;
+    }
+
+    it++;
+  }
+
+  Rect r;
+  bool once = true;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (it != items.end()) {
+    Item &item = (*it++);
+    r.setRect(x, y, itemw, item.height);
+
+    if (r.contains(p) && once) {
+      setActiveItem(r, item, false);
+      if (item.isEnabled())
+        itemClicked(item, e->xbutton.button);
+      if ( item.submenu())
+        do_hide = false;
+      once = false;
+    } else if (item.active) {
+      item.active = false;
+      XClearArea(*BaseDisplay::instance(), windowID(),
+                  r.x(), r.y(), r.width(), r.height(), True);
+    }
+
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+
+  if (do_hide)
+    hideAll();
+}
+
+void Basemenu::pointerMotionEvent(XEvent *e)
+{
+  motion++;
+  timer.stop();
+
+  Point gp(e->xmotion.x_root, e->xmotion.y_root);
+  if (! rect().contains(gp))
+    return;
+
+  Point p(e->xmotion.x, e->xmotion.y);
+  if (! items_rect.contains(p) && (show_title && ! title_rect.contains(p)))
+    return;
+
+  Items::iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()){
+      // internal error
+      fprintf(stderr, "Basemenu: cannot track active item, internal error\n");
+      return;
+    }
+
+    it++;
+  }
+
+  Rect r;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (it != items.end()) {
+    Item &item = (*it++);
+    r.setRect(x, y, itemw, item.height);
+
+    if (r.contains(p)) {
+      if (current_submenu && item.submenu() != current_submenu) {
+        current_submenu->hide();
+        current_submenu = 0;
+        timeout.menu = 0;
+      }
+
+      title_pressed = false;
+      setActiveItem(r, item, true);
+    } else if (item.active) {
+      if (current_submenu && item.submenu() == current_submenu) {
+        current_submenu->hide();
+        current_submenu = 0;
+        timeout.menu = 0;
+      }
+
+      item.active = false;
+      XClearArea(*BaseDisplay::instance(), windowID(),
+                 r.x(), r.y(), r.width(), r.height(), True);
+    }
+
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+}
+
+void Basemenu::leaveEvent(XEvent *)
+{
+  Items::iterator it = items.begin();
+  if (show_title) {
+    if (it == items.end()){
+      // internal error
+      fprintf(stderr, "Basemenu: cannot track active item, internal error\n");
+      return;
+    }
+
+    it++;
+  }
+
+  Rect r;
+  int row = 0, col = 0;
+  int x = items_rect.x();
+  int y = items_rect.y();
+  while (it != items.end()) {
+    Item &item = (*it++);
+    r.setRect(x, y, itemw, item.height);
+
+    if (item.active) {
+      if (current_submenu) {
+        // this should never happen
+        assert(current_submenu == item.submenu());
+        if (! current_submenu->isVisible()) current_submenu->show();
+      } else {
+        active_item = -1;
+        item.active = false;
+        XClearArea(*BaseDisplay::instance(), windowID(),
+                   r.x(), r.y(), r.width(), r.height(), True);
+      }
+    }
+
+    y += item.height;
+    row++;
+
+    if (y >= items_rect.bottom()) {
+      // next column
+      col++;
+      row = 0;
+      y = items_rect.y();
+      x = items_rect.x() + itemw * col;
+    }
+  }
+}
+
+void Basemenu::exposeEvent(XEvent *e)
+{
+  Rect todo(e->xexpose.x, e->xexpose.y, e->xexpose.width, e->xexpose.height);
+  BStyle *style = Blackbox::instance()->screen(screenNumber())->style();
+  BaseDisplay *display = BaseDisplay::instance();
+  BGCCache *cache = BGCCache::instance();
+
+  BGCCache::Item &tgc = cache->find(style->menuTitle().color()),
+                 &igc = cache->find(style->menu().color());
+
+  if (show_title && todo.intersects(title_rect)) {
+    Rect up = title_rect & todo;
+    if (style->menuTitle().texture() == (BImage_Solid | BImage_Flat))
+      XFillRectangle(*display, windowID(), tgc.gc(),
+                     up.x(), up.y(), up.width(), up.height());
+    else if (title_pixmap)
+      XCopyArea(*display, title_pixmap, windowID(), tgc.gc(),
+                up.x() - title_rect.x(), up.y() - title_rect.y(),
+                up.width(), up.height(), up.x(), up.y());
+    drawTitle();
+  }
+  if (todo.intersects(frame_rect)) {
+    Rect up = frame_rect & todo;
+    if (style->menu().texture() == (BImage_Solid | BImage_Flat))
+      XFillRectangle(*BaseDisplay::instance(), windowID(), igc.gc(),
+                     up.x(), up.y(), up.width(), up.height());
+    else if (frame_pixmap)
+      XCopyArea(*display, frame_pixmap, windowID(), igc.gc(),
+                up.x() - frame_rect.x(), up.y() - frame_rect.y(),
+                up.width(), up.height(), up.x(), up.y());
+    if (todo.intersects(items_rect)) {
+      Rect up = items_rect & todo;
+      Items::const_iterator it = items.begin();
+      if (show_title) {
+        if (it == items.end()) {
+          // internal error
+          fprintf(stderr, "Basemenu: cannot draw menu items, internal error\n");
+          cache->release(tgc);
+          cache->release(igc);
+          return;
+        }
+        it++;
+      }
+
+      // only draw items that intersect with the needed update rect
+      Rect r;
+      int row = 0, col = 0;
+      int x = items_rect.x();
+      int y = items_rect.y();
+      while (it != items.end()) {
+        const Item &item = (*it++);
+        r.setRect(x, y, itemw, item.height);
+
+        if (r.intersects(up))
+          drawItem(r, item);
+
+        y += item.height;
+        row++;
+
+        if (y >= items_rect.bottom()) {
+          // next column
+          col++;
+          row = 0;
+          y = items_rect.y();
+          x = items_rect.x() + itemw * col;
+        }
       }
     }
   }
+
+  if (style->borderWidth()) {
+    // draw the borders of the menu if they need updating
+    XRectangle xrects[5];
+    int num = 0;
+    if (todo.y() < style->borderWidth()) {
+      // top line
+      xrects[num].x = style->borderWidth();
+      xrects[num].y = 0;
+      xrects[num].width = width() - style->borderWidth() * 2;
+      xrects[num].height = style->borderWidth();
+      num++;
+    }
+    if (todo.y() + todo.height() > height() - style->borderWidth()) {
+      xrects[num].x = style->borderWidth();
+      xrects[num].y = height() - style->borderWidth();
+      xrects[num].width = width() - style->borderWidth() * 2;
+      xrects[num].height = style->borderWidth();
+      num++;
+    }
+    if (todo.x() < style->borderWidth()) {
+      xrects[num].x = 0;
+      xrects[num].y = 0;
+      xrects[num].width = style->borderWidth();
+      xrects[num].height = height();
+      num++;
+    }
+    if (todo.x() + todo.width() > width() - style->borderWidth()) {
+      xrects[num].x = width() - style->borderWidth();
+      xrects[num].y = 0;
+      xrects[num].width = style->borderWidth();
+      xrects[num].height = height();
+      num++;
+    }
+    if (show_title &&
+        (todo.y() < title_rect.y() + title_rect.height() ||
+         todo.y() + todo.height() > title_rect.y() + title_rect.height())) {
+      xrects[num].x = style->borderWidth();
+      xrects[num].y = title_rect.y() + title_rect.height();
+      xrects[num].width = width() - style->borderWidth() * 2;
+      xrects[num].height = style->borderWidth();
+      num++;
+    }
+    if (num > 0) {
+      BGCCache::Item &bgc = cache->find(style->borderColor());
+      XFillRectangles(*display, windowID(), bgc.gc(), xrects, num);
+      cache->release(bgc);
+    }
+  }
+
+  cache->release(tgc);
+  cache->release(igc);
 }
 
+void Basemenu::keyPressEvent(XEvent *e)
+{
+  timer.stop();
 
-void Basemenu::enterNotifyEvent(XCrossingEvent *ce) {
-  if (ce->window == menu.frame) {
-    menu.x_shift = menu.x, menu.y_shift = menu.y;
-    if (menu.x + menu.width > screen->getWidth()) {
-      menu.x_shift = screen->getWidth() - menu.width -
-        screen->getBorderWidth();
-      shifted = True;
-    } else if (menu.x < 0) {
-      menu.x_shift = -screen->getBorderWidth();
-      shifted = True;
-    }
+  BaseDisplay *display = BaseDisplay::instance();
+  KeySym sym = XKeycodeToKeysym(*display, e->xkey.keycode, 0);
 
-    if (menu.y + menu.height > screen->getHeight()) {
-      menu.y_shift = screen->getHeight() - menu.height -
-        screen->getBorderWidth();
-      shifted = True;
-    } else if (menu.y + (signed) menu.title_h < 0) {
-      menu.y_shift = -screen->getBorderWidth();
-      shifted = True;
-    }
+  if (sym == XK_Escape) {
+    hideAll();
+  } else if (count() > 0) {
+    int new_active_item = active_item;
 
-    if (shifted)
-      XMoveWindow(display, menu.window, menu.x_shift, menu.y_shift);
+    if (sym == XK_Up) {
+      if (--new_active_item < 0)
+        new_active_item = count() - 1;
+    } else if (sym == XK_Down) {
+      if (++new_active_item >= count())
+        new_active_item = 0;
+    } else if (sym == XK_Home) {
+      new_active_item = 0;
+    } else if (sym == XK_End) {
+      new_active_item = count() - 1;
+    } else if (sym == XK_Right) {
+      showActiveSubmenu();
+      return;
+    } else if (sym == XK_Return || sym == XK_space) {
+      clickActiveItem();
+      return;
+    } else {
+      KeySym textsym = 0;
+      char chars[513];
 
-    if (which_sub != -1) {
-      BasemenuItem *tmp = menuitems->find(which_sub);
-      if (tmp->submenu()->isVisible()) {
-	int sbl = (ce->x / menu.item_w), i = (ce->y / menu.item_h),
-	  w = (sbl * menu.persub) + i;
-
-	if (w != which_sub && (! tmp->submenu()->isTorn())) {
-	  tmp->submenu()->internal_hide();
-
-	  drawItem(which_sub, False, True);
-	  which_sub = -1;
-	}
+      XLookupString(&e->xkey, chars, 513, &textsym, 0);
+      if (strlen(chars) > 0) {
+        if ((new_active_item = lookupItem(chars)) == -1)
+          new_active_item = active_item;
       }
     }
+
+    if (new_active_item >= 0 && new_active_item < count())
+      setActiveItem(new_active_item);
+  }
+
+  if (sym == XK_Left) {
+    if (parent_menu)
+      hide();
   }
 }
 
-
-void Basemenu::leaveNotifyEvent(XCrossingEvent *ce) {
-  if (ce->window == menu.frame) {
-    if (which_press != -1 && which_sbl != -1 && menuitems->count() > 0) {
-      int p = (which_sbl * menu.persub) + which_press;
-
-      drawItem(p, (p == which_sub), True);
-
-      which_sbl = which_press = -1;
-    }
-
-    if (shifted) {
-      XMoveWindow(display, menu.window, menu.x, menu.y);
-      shifted = False;
-
-      if (which_sub != -1) drawSubmenu(which_sub);
-    }
-  }
+void Basemenu::titleClicked(int button)
+{
+  if (button == 3)
+    hideAll();
 }
 
-
-void Basemenu::reconfigure(void) {
-  XSetWindowBackground(display, menu.window,
-		       screen->getBorderColor()->getPixel());
-  XSetWindowBorder(display, menu.window,
-		   screen->getBorderColor()->getPixel());
-  XSetWindowBorderWidth(display, menu.window, screen->getBorderWidth());
-
-  menu.bevel_w = screen->getBevelWidth();
-  update();
+void Basemenu::itemClicked(const Item &, int)
+{
 }

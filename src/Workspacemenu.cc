@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Workspacemenu.cc for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -34,36 +35,38 @@
 #include "blackbox.hh"
 #include "Screen.hh"
 #include "Toolbar.hh"
+
 #include "Workspacemenu.hh"
 #include "Workspace.hh"
 
 
-Workspacemenu::Workspacemenu(BScreen *scrn) : Basemenu(scrn) {
+Workspacemenu::Workspacemenu(BScreen *scrn)
+    : Basemenu(scrn->screenNumber())
+{
+  setAutoDelete(false);
+
   screen = scrn;
 
-  setInternalMenu();
+  setTitle(i18n(WorkspacemenuSet, WorkspacemenuWorkspacesTitle, "Workspaces"));
+  showTitle();
 
-  setLabel(i18n->getMessage(WorkspacemenuSet, WorkspacemenuWorkspacesTitle,
-			    "Workspaces"));
-  insert(i18n->getMessage(WorkspacemenuSet, WorkspacemenuNewWorkspace,
-			  "New Workspace"));
-  insert(i18n->getMessage(WorkspacemenuSet, WorkspacemenuRemoveLast,
-			  "Remove Last"));
+  insert(i18n(WorkspacemenuSet, WorkspacemenuNewWorkspace, "New Workspace"));
+  insert(i18n(WorkspacemenuSet, WorkspacemenuRemoveLast, "Remove Last"));
+  insertSeparator();
 }
 
-
-void Workspacemenu::itemSelected(int button, int index) {
+void Workspacemenu::itemClicked(const Item &item, int button)
+{
   if (button != 1)
     return;
 
-  if (index == 0)
+  if (item.index() == 0)
     screen->addWorkspace();
-  else if (index == 1)
+  else if (item.index() == 1)
     screen->removeLastWorkspace();
   else if ((screen->getCurrentWorkspace()->getWorkspaceID() !=
-	    (index - 2)) && ((index - 2) < screen->getCount()))
-    screen->changeWorkspaceID(index - 2);
-
-  if (! (screen->getWorkspacemenu()->isTorn() || isTorn()))
-    hide();
+            (item.index() - 3)) && ((item.index() - 3) < screen->getCount())) {
+    screen->changeWorkspaceID(item.index() - 3);
+    hideAll();
+  }
 }

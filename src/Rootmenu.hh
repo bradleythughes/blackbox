@@ -1,6 +1,7 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 2; -*-
 // Rootmenu.hh for Blackbox - an X11 Window manager
-// Copyright (c) 2001 Sean 'Shaleh' Perry <shaleh@debian.org>
-// Copyright (c) 1997 - 2000 Brad Hughes (bhughes@tcac.net)
+// Copyright (c) 2001 - 2002 Sean 'Shaleh' Perry <shaleh at debian.org>
+// Copyright (c) 1997 - 2000, 2002 Bradley T Hughes <bhughes at trolltech.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -23,29 +24,18 @@
 #ifndef   __Rootmenu_hh
 #define   __Rootmenu_hh
 
-// forward declarations
-class Rootmenu;
-
-class Blackbox;
-class BScreen;
-
 #include "Basemenu.hh"
 
 
-class Rootmenu : public Basemenu {
-private:
-  Blackbox *blackbox;
-  BScreen *screen;
+class Rootmenu : public Basemenu
+{
+public:
+  enum Function { Execute, Restart, RestartOther, Exit, SetStyle, Reconfigure };
 
+  Rootmenu(int);
 
 protected:
-  virtual void itemSelected(int, int);
-
-
-public:
-  Rootmenu(BScreen *);
+  virtual void itemClicked(const Item &, int);
 };
 
-
 #endif // __Rootmenu_hh
-
