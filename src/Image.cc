@@ -27,6 +27,7 @@
 
 #include "i18n.hh"
 #include "BaseDisplay.hh"
+#include "GCCache.hh"
 #include "Image.hh"
 #include "Texture.hh"
 
@@ -122,146 +123,128 @@ Pixmap BImage::render(const BTexture &texture) {
 
 Pixmap BImage::render_solid(const BTexture &texture)
 {
-    BaseDisplay *display = BaseDisplay::instance();
+  BaseDisplay *display = BaseDisplay::instance();
   Pixmap pixmap = XCreatePixmap( *display,
-				control->getDrawable(), width,
-				height, control->getDepth());
+                                 control->getDrawable(), width,
+                                 height, control->getDepth());
   if (pixmap == None) {
     fprintf(stderr, i18n(ImageSet, ImageErrorCreatingSolidPixmap,
-		       "BImage::render_solid: error creating pixmap\n"));
+                         "BImage::render_solid: error creating pixmap\n"));
     return None;
   }
 
-  XGCValues gcv;
-  GC gc, hgc, lgc;
+  BGCCache *cache = BGCCache::instance();
+  BGCCache::Item &gc = cache->find(texture.color()),
+                &lgc = cache->find(texture.lightColor()),
+                &sgc = cache->find(texture.shadowColor());
 
-  gcv.foreground = texture.color().pixel();
-  gcv.fill_style = FillSolid;
-  gc = XCreateGC(*display, pixmap,
-		 GCForeground | GCFillStyle, &gcv);
-
-  gcv.foreground = texture.lightColor().pixel();
-  hgc = XCreateGC(*display, pixmap,
-		  GCForeground, &gcv);
-
-  gcv.foreground = texture.shadowColor().pixel();
-  lgc = XCreateGC(*display, pixmap,
-		  GCForeground, &gcv);
-
-  XFillRectangle(*display, pixmap, gc, 0, 0,
-		 width, height);
+  XFillRectangle(*display, pixmap, gc.gc(), 0, 0, width, height);
 
 #ifdef    INTERLACE
   if (texture.texture() & BImage_Interlaced) {
-    gcv.foreground = texture.colorTo().pixel();
-    GC igc = XCreateGC(*display, pixmap,
-		       GCForeground, &gcv);
+    BGCCache::Item &igc = cache->find(texture.colorTo());
 
     register unsigned int i = 0;
     for (; i < height; i += 2)
-      XDrawLine(*display, pixmap, igc,
-		0, i, width, i);
+      XDrawLine(*display, pixmap, igc.gc(), 0, i, width, i);
 
-    XFreeGC(*display, igc);
+    cache->release(igc);
   }
 #endif // INTERLACE
 
 
   if (texture.texture() & BImage_Bevel1) {
     if (texture.texture() & BImage_Raised) {
-      XDrawLine(*display, pixmap, lgc,
+      XDrawLine(*display, pixmap, sgc.gc(),
                 0, height - 1, width - 1, height - 1);
-      XDrawLine(*display, pixmap, lgc,
+      XDrawLine(*display, pixmap, sgc.gc(),
                 width - 1, height - 1, width - 1, 0);
 
-      XDrawLine(*display, pixmap, hgc,
+      XDrawLine(*display, pixmap, lgc.gc(),
                 0, 0, width - 1, 0);
-      XDrawLine(*display, pixmap, hgc,
+      XDrawLine(*display, pixmap, lgc.gc(),
                 0, height - 1, 0, 0);
     } else if (texture.texture() & BImage_Sunken) {
-      XDrawLine(*display, pixmap, hgc,
+      XDrawLine(*display, pixmap, lgc.gc(),
                 0, height - 1, width - 1, height - 1);
-      XDrawLine(*display, pixmap, hgc,
+      XDrawLine(*display, pixmap, lgc.gc(),
                 width - 1, height - 1, width - 1, 0);
 
-      XDrawLine(*display, pixmap, lgc,
+      XDrawLine(*display, pixmap, sgc.gc(),
                 0, 0, width - 1, 0);
-      XDrawLine(*display, pixmap, lgc,
+      XDrawLine(*display, pixmap, sgc.gc(),
                 0, height - 1, 0, 0);
     }
   } else if (texture.texture() & BImage_Bevel2) {
     if (texture.texture() & BImage_Raised) {
-      XDrawLine(*display, pixmap, lgc,
+      XDrawLine(*display, pixmap, sgc.gc(),
                 1, height - 3, width - 3, height - 3);
-      XDrawLine(*display, pixmap, lgc,
+      XDrawLine(*display, pixmap, sgc.gc(),
                 width - 3, height - 3, width - 3, 1);
 
-      XDrawLine(*display, pixmap, hgc,
+      XDrawLine(*display, pixmap, lgc.gc(),
                 1, 1, width - 3, 1);
-      XDrawLine(*display, pixmap, hgc,
+      XDrawLine(*display, pixmap, lgc.gc(),
                 1, height - 3, 1, 1);
     } else if (texture.texture() & BImage_Sunken) {
-      XDrawLine(*display, pixmap, hgc,
+      XDrawLine(*display, pixmap, lgc.gc(),
                 1, height - 3, width - 3, height - 3);
-      XDrawLine(*display, pixmap, hgc,
+      XDrawLine(*display, pixmap, lgc.gc(),
                 width - 3, height - 3, width - 3, 1);
 
-      XDrawLine(*display, pixmap, lgc,
+      XDrawLine(*display, pixmap, sgc.gc(),
                 1, 1, width - 3, 1);
-      XDrawLine(*display, pixmap, lgc,
+      XDrawLine(*display, pixmap, sgc.gc(),
                 1, height - 3, 1, 1);
     }
   }
 
-  XFreeGC(*display, gc);
-  XFreeGC(*display, hgc);
-  XFreeGC(*display, lgc);
+  cache->release(gc);
+  cache->release(lgc);
+  cache->release(sgc);
 
   return pixmap;
 }
 
 
 Pixmap BImage::render_gradient(const BTexture &texture) {
-    int inverted = 0;
+  int inverted = 0;
 
 #ifdef    INTERLACE
-    interlaced = texture.texture() & BImage_Interlaced;
+  interlaced = texture.texture() & BImage_Interlaced;
 #endif // INTERLACE
 
-    if (texture.texture() & BImage_Sunken) {
-	from = texture.colorTo();
-	to = texture.color();
+  if (texture.texture() & BImage_Sunken) {
+    from = texture.colorTo();
+    to = texture.color();
 
-	if (! (texture.texture() & BImage_Invert))
-	    inverted = 1;
-    } else {
-	from = texture.color();
-	to = texture.colorTo();
+    if (! (texture.texture() & BImage_Invert))
+      inverted = 1;
+  } else {
+    from = texture.color();
+    to = texture.colorTo();
 
-	if (texture.texture() & BImage_Invert)
-	    inverted = 1;
-    }
+    if (texture.texture() & BImage_Invert)
+      inverted = 1;
+  }
 
-    control->getGradientBuffers(width, height, &xtable, &ytable);
+  control->getGradientBuffers(width, height, &xtable, &ytable);
 
-    if (texture.texture() & BImage_Diagonal) dgradient();
-    else if (texture.texture() & BImage_Elliptic) egradient();
-    else if (texture.texture() & BImage_Horizontal) hgradient();
-    else if (texture.texture() & BImage_Pyramid) pgradient();
-    else if (texture.texture() & BImage_Rectangle) rgradient();
-    else if (texture.texture() & BImage_Vertical) vgradient();
-    else if (texture.texture() & BImage_CrossDiagonal) cdgradient();
-    else if (texture.texture() & BImage_PipeCross) pcgradient();
+  if (texture.texture() & BImage_Diagonal) dgradient();
+  else if (texture.texture() & BImage_Elliptic) egradient();
+  else if (texture.texture() & BImage_Horizontal) hgradient();
+  else if (texture.texture() & BImage_Pyramid) pgradient();
+  else if (texture.texture() & BImage_Rectangle) rgradient();
+  else if (texture.texture() & BImage_Vertical) vgradient();
+  else if (texture.texture() & BImage_CrossDiagonal) cdgradient();
+  else if (texture.texture() & BImage_PipeCross) pcgradient();
 
-    if (texture.texture() & BImage_Bevel1) bevel1();
-    else if (texture.texture() & BImage_Bevel2) bevel2();
+  if (texture.texture() & BImage_Bevel1) bevel1();
+  else if (texture.texture() & BImage_Bevel2) bevel2();
 
-    if (inverted) invert();
+  if (inverted) invert();
 
-    Pixmap pixmap = renderPixmap();
-
-    return pixmap;
-
+  return renderPixmap();
 }
 
 
