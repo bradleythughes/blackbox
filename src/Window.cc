@@ -2464,7 +2464,7 @@ void BlackboxWindow::buttonPressEvent(XButtonEvent *be) {
   if (frame.maximize_button == be->window) {
     redrawMaximizeButton(True);
   } else if (be->button == 1 || (be->button == 3 && be->state == Mod1Mask)) {
-    if ((! flags.focused) && (! screen->isSloppyFocus()))
+    if (! flags.focused)
       setInputFocus();
 
     if (frame.iconify_button == be->window) {
@@ -2472,7 +2472,7 @@ void BlackboxWindow::buttonPressEvent(XButtonEvent *be) {
     } else if (frame.close_button == be->window) {
       redrawCloseButton(True);
     } else if (frame.plate == be->window) {
-      if ((! flags.focused) && (! screen->isSloppyFocus()))
+      if (! flags.focused)
         setInputFocus();
 
       screen->getWorkspace(workspace_number)->raiseWindow(this);
