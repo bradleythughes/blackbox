@@ -1651,6 +1651,9 @@ void BlackboxWindow::maximize(unsigned int button) {
     frame.changing.setY(blackbox_attrib.premax_y);
     frame.changing.setHeight(blackbox_attrib.premax_h);
     break;
+
+  default:
+    assert(0);
   }
 
   constrain(TopLeft);
@@ -2674,7 +2677,7 @@ void BlackboxWindow::buttonReleaseEvent(const XButtonEvent *re) {
           client.window);
 #endif
 
-  if (re->window == frame.maximize_button) {
+  if (re->window == frame.maximize_button && re->button < 4) {
     if ((re->x >= 0 && re->x <= static_cast<signed>(frame.button_w)) &&
         (re->y >= 0 && re->y <= static_cast<signed>(frame.button_w))) {
       maximize(re->button);
@@ -2682,14 +2685,14 @@ void BlackboxWindow::buttonReleaseEvent(const XButtonEvent *re) {
     } else {
       redrawMaximizeButton(flags.maximized);
     }
-  } else if (re->window == frame.iconify_button) {
+  } else if (re->window == frame.iconify_button && re->button == 1) {
     if ((re->x >= 0 && re->x <= static_cast<signed>(frame.button_w)) &&
         (re->y >= 0 && re->y <= static_cast<signed>(frame.button_w))) {
       iconify();
     } else {
       redrawIconifyButton(False);
     }
-  } else if (re->window == frame.close_button) {
+  } else if (re->window == frame.close_button && re->button == 1) {
     if ((re->x >= 0 && re->x <= static_cast<signed>(frame.button_w)) &&
         (re->y >= 0 && re->y <= static_cast<signed>(frame.button_w)))
       close();
