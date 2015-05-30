@@ -71,11 +71,11 @@ bsetroot::bsetroot(int argc, char **argv, char *dpy_name,
     } else if (! strcmp("-mod", argv[i])) {
       if ((++i) >= argc) usage();
 
-      mod_x = atoi(argv[i]);
+      mod_x = std::atoi(argv[i]);
 
       if ((++i) >= argc) usage();
 
-      mod_y = atoi(argv[i]);
+      mod_y = std::atoi(argv[i]);
 
       if (mod_x < 1) mod_x = 1;
       if (mod_y < 1) mod_y = 1;
@@ -339,7 +339,7 @@ void bsetroot::usage(int exit_code) {
           "  -to <color>              gradient end color\n\n"
           "  -solid <color>           solid color\n\n"
           "  -help                    print this help text and exit\n");
-  exit(exit_code);
+  std::exit(exit_code);
 }
 
 int main(int argc, char **argv) {
@@ -353,7 +353,7 @@ int main(int argc, char **argv) {
       if ((++i) >= argc) {
         fprintf(stderr, "error: '-display' requires an argument\n");
 
-        ::exit(1);
+        std::exit(1);
       }
 
       display_name = argv[i];

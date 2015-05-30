@@ -31,6 +31,8 @@
 #include <PixmapCache.hh>
 #include <Util.hh>
 
+#include <cstdlib>
+
 #include <X11/Xresource.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -418,7 +420,7 @@ Blackbox::Blackbox(char **m_argv, const char *dpy_name,
   if (managed == 0) {
     fprintf(stderr, "%s: no managable screens found, exiting...\n",
             applicationName().c_str());
-    ::exit(3);
+    std::exit(3);
   }
 
   screen_list_count = managed;

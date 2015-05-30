@@ -36,6 +36,7 @@
 
 #include <stdio.h>
 
+#include <cstdlib>
 #include <cstring>
 
 
@@ -77,7 +78,7 @@ static void showHelp(int exitval) {
 #endif // XFT
          );
 
-  ::exit(exitval);
+  std::exit(exitval);
 }
 
 int main(int argc, char **argv) {
@@ -95,13 +96,13 @@ int main(int argc, char **argv) {
              "Copyright (c) 1997 - 2000, 2002 - 2005 Bradley T Hughes\n",
              __blackbox_version);
 
-      ::exit(0);
+      std::exit(0);
     } else if (! strcmp(argv[i], "-rc")) {
       // look for alternative rc file to use
 
       if ((++i) >= argc) {
         fprintf(stderr, "error: '-rc' requires and argument\n");
-        ::exit(1);
+        std::exit(1);
       }
 
       rc_file = argv[i];
@@ -111,7 +112,7 @@ int main(int argc, char **argv) {
 
       if ((++i) >= argc) {
         fprintf(stderr, "error: '-display' requires an argument\n");
-        ::exit(1);
+        std::exit(1);
       }
 
       dpy_name = argv[i];

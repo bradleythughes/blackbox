@@ -94,7 +94,7 @@ namespace bt {
 
   std::string tolower(const std::string &string);
 
-#ifdef _XUTIL_H_
+#if defined(_XUTIL_H_) || defined(_X11_XUTIL_H_)
   std::string textPropertyToString(::Display *display,
                                    ::XTextProperty& text_prop);
 #endif
