@@ -8,9 +8,9 @@ $ #No
 $ #DirectionTitle
 # Retning
 $ #DirectionHoriz
-# Horisontal
+# Vandret
 $ #DirectionVert
-# Vertikal
+# Lodret
 
 $ #AlwaysOnTop
 # Altid øverst
@@ -18,21 +18,18 @@ $ #AlwaysOnTop
 $ #PlacementTitle
 # Placering
 $ #PlacementTopLeft
-# Øverste venstre hjørne
+# Øverste til venstre
 $ #PlacementCenterLeft
-# Venstre i midten
+# Til venstre i midten
 $ #PlacementBottomLeft
-# Bunden til venstre
+# Nederst til venstre
 $ #PlacementTopCenter
-# Toppen i midten
+# Øverst i midten
 $ #PlacementBottomCenter
-# Bunden i midten
+# Nederst i midten
 $ #PlacementTopRight
 # Øverst til højre
 $ #PlacementCenterRight
 # Til højre i midten
 $ #PlacementBottomRight
-# Til højre i bunden
-
-$ #AutoHide
-# Gem automatisk
+# Nederst til højre

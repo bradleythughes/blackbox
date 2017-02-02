@@ -5,7 +5,7 @@ $ #SendTo
 $ #Shade
 # Skygge
 $ #Iconify
-# Iconificeret
+# Ikonificér
 $ #Maximize
 # Maksimer
 $ #Raise
@@ -13,7 +13,7 @@ $ #Raise
 $ #Lower
 # Sænk
 $ #Stick
-# Klæbrig
+# Klæb
 $ #KillClient
 # Dræb klient
 $ #Close

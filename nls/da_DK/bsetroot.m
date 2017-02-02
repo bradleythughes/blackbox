@@ -5,12 +5,12 @@ $ #MustSpecify
 $ #Usage
 # %s 2.0: (c) 1997-2000 Brad Hughes\n\n\
 	  (c) 2001-2002 Sean 'Shaleh' Perry\n\n\
-  -display <string>        skærmtilslutning\n\
+  -display <streng>        brug skærmtilslutning\n\
   -mod <x> <y>             modula mønster\n\
-  -foreground, -fg <color> modula foregrundsfarve\n\
-  -background, -bg <color> modula baggrundsfarve\n\n\
-  -gradient <texture>      gradient tekstur\n\
-  -from <color>            gradient start farve\n\
-  -to <color>              gradient slut farve\n\n\
-  -solid <color>           fast farve\n\n\
-  -help                    vis denne hjlp og afslut\n
+  -foreground, -fg <farve> modula foregrundsfarve\n\
+  -background, -bg <farve> modula baggrundsfarve\n\n\
+  -gradient <tekstur>      gradient tekstur\n\
+  -from <farve>            gradient startfarve\n\
+  -to <farve>              gradient slutfarve\n\n\
+  -solid <farve>           ensfarvet\n\n\
+  -help                    vis denne hjælpetekst og afslut\n
