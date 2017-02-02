@@ -15,8 +15,8 @@ $ #NoStrftimeTimeFormatP
 $ #NoStrftimeTimeFormatA
 # a
 $ #ToolbarTitle
-# VÃ¦rktÃ¸jsbjÃ¦lke
+# Værktøjsbjælke
 $ #EditWkspcName
-# Rediger navnet pÃ¥ det aktuelle skrivebord
+# Rediger navnet på det aktuelle skrivebord
 $ #ToolbarPlacement
-# VÃ¦rktÃ¸jsbjÃ¦lkens placering
+# Værktøjsbjælkens placering

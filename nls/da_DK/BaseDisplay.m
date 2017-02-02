@@ -11,6 +11,6 @@ $ #Aborting
 $ #XConnectFail
 # BaseDisplay::BaseDisplay: tilslutning til X-server mislykkedes.\n"
 $ #CloseOnExecFail
-# BaseDisplay::BaseDisplay: kunne ikke markere skÃ¦rmtilslutning som luk-ved-eksekvering\n
+# BaseDisplay::BaseDisplay: kunne ikke markere skærmtilslutning som luk-ved-eksekvering\n
 $ #BadWindowRemove
-# BaseDisplay::eventLoop(): fjerner dÃ¥rligt vindue fra hÃ¦ndelseskÃ¸en\n
+# BaseDisplay::eventLoop(): fjerner dårligt vindue fra hændelseskøen\n

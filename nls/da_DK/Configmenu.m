@@ -13,9 +13,9 @@ $ #OpaqueMove
 $ #FullMax
 # Fuld maksimering
 $ #FocusNew
-# FokusÃ©r nye vinduer
+# Fokusér nye vinduer
 $ #FocusLast
-# FokusÃ©r vindue ved skift af skrivebord
+# Fokusér vindue ved skift af skrivebord
 $ #DisableBindings
 # Deaktiver tastebindinger med Scroll Lock
 $ #ClickToFocus
@@ -23,19 +23,19 @@ $ #ClickToFocus
 $ #SloppyFocus
 # Dovent fokus
 $ #AutoRaise
-# HÃ¦v automatisk
+# Hæv automatisk
 $ #ClickRaise
-# Klik for at hÃ¦ve
+# Klik for at hæve
 $ #SmartRows
-# Intelligent placering (rÃ¦kker)
+# Intelligent placering (rækker)
 $ #SmartCols
-# Intelligent placering (sÃ¸jler)
+# Intelligent placering (søjler)
 $ #Cascade
 # Kaskade placering
 $ #LeftRight
-# Fra venstre mod hÃ¸jre
+# Fra venstre mod højre
 $ #RightLeft
-# Fra hÃ¸jre mod venstre
+# Fra højre mod venstre
 $ #TopBottom
 # Oppefra
 $ #BottomTop
@@ -45,4 +45,4 @@ $ #NoDithering
 $ #OrderedDithering
 # Brug fast dither
 $ #FloydSteinbergDithering
-# Brug dither i hÃ¸j kvalitet
+# Brug dither i høj kvalitet

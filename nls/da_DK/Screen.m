@@ -1,14 +1,14 @@
 $set 6 #Screen
 
 $ #AnotherWMRunning
-# BScreen::BScreen: der opstod en fejl ved forespÃ¸rgsel til X-server.\n  \
-en anden window manager kÃ¸rer allerede pÃ¥ skÃ¦rm %s.\n
+# BScreen::BScreen: der opstod en fejl ved forespørgsel til X-server.\n  \
+en anden window manager kører allerede på skærm %s.\n
 $ #ManagingScreen
-# BScreen::BScreen: hÃ¥ndterer skÃ¦rm %d ved brug af visuel 0x%lx, farvedybde %d\n
+# BScreen::BScreen: håndterer skærm %d ved brug af visuel 0x%lx, farvedybde %d\n
 $ #FontLoadFail
-# BScreen::LoadStyle(): kunne ikke indlÃ¦se skrifttype '%s'\n
+# BScreen::LoadStyle(): kunne ikke indlæse skrifttype '%s'\n
 $ #DefaultFontLoadFail
-# BScreen::LoadStyle(): kunne ikke indlÃ¦se standardskrifttypen.\n
+# BScreen::LoadStyle(): kunne ikke indlæse standardskrifttypen.\n
 $ #EmptyMenuFile
 # %s: tom menu fil\n
 $ #xterm

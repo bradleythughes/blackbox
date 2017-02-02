@@ -13,23 +13,23 @@ $ #DirectionVert
 # Lodret
 
 $ #AlwaysOnTop
-# Altid Ã¸verst
+# Altid øverst
 
 $ #PlacementTitle
 # Placering
 $ #PlacementTopLeft
-# Ã˜verste til venstre
+# Øverste til venstre
 $ #PlacementCenterLeft
 # Til venstre i midten
 $ #PlacementBottomLeft
 # Nederst til venstre
 $ #PlacementTopCenter
-# Ã˜verst i midten
+# Øverst i midten
 $ #PlacementBottomCenter
 # Nederst i midten
 $ #PlacementTopRight
-# Ã˜verst til hÃ¸jre
+# Øverst til højre
 $ #PlacementCenterRight
-# Til hÃ¸jre i midten
+# Til højre i midten
 $ #PlacementBottomRight
-# Nederst til hÃ¸jre
+# Nederst til højre

@@ -5,11 +5,11 @@ $ #ErrorCreatingSolidPixmap
 $ #ErrorCreatingXImage
 # BImage::renderXImage: fejl ved oprettelse af XImage\n
 $ #UnsupVisual
-# BImage::renderXImage: farvedybden understÃ¸ttes ikke\n
+# BImage::renderXImage: farvedybden understøttes ikke\n
 $ #ErrorCreatingPixmap
 # BImage::renderPixmap: fejl ved oprettelse af pixmap\n
 $ #InvalidColormapSize
-# BImageControl::BImageControl: ugyldig stÃ¸rrelse pÃ¥ farvekort %d (%d/%d/%d) - reducerer\n
+# BImageControl::BImageControl: ugyldig størrelse på farvekort %d (%d/%d/%d) - reducerer\n
 $ #ErrorAllocatingColormap
 # BImageControl::BImageControl: fejl ved allokering af farvekort\n
 $ #ColorAllocFail

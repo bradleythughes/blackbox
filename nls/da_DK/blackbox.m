@@ -1,6 +1,6 @@
 $set 13 #blackbox
 
 $ #NoManagableScreens
-# Blackbox::Blackbox: ingen hÃ¥ndterbare skÃ¦rme fundet, afbryder\n
+# Blackbox::Blackbox: ingen håndterbare skærme fundet, afbryder\n
 $ #MapRequest
 # Blackbox::process_event: MapRequest for 0x%lx\n

@@ -1,18 +1,18 @@
 $set 14 #main
 
 $ #RCRequiresArg
-# fejl: '-rc' krÃ¦ver et argument\n
+# fejl: '-rc' kræver et argument\n
 $ #DISPLAYRequiresArg
-# fjel: '-display' krÃ¦ver et argument\n
+# fjel: '-display' kræver et argument\n
 $ #WarnDisplaySet
-# advarsel: kunne ikke sÃ¦tte miljÃ¸variablen 'DISPLAY'\n
+# advarsel: kunne ikke sætte miljøvariablen 'DISPLAY'\n
 $ #Usage
 # Blackbox %s : (c) 2001 - 2002 Sean 'Shaleh' Perry\n\
   \t\t\t 1997 - 2000, 2002 Brad Hughes\n\n\
-  -display <streng>\t\tbrug skÃ¦rmtilslutning.\n\
+  -display <streng>\t\tbrug skærmtilslutning.\n\
   -rc <streng>\t\t\tbrug alternativ resourcefil.\n\
   -version\t\t\tvis versionsnummer og afslut.\n\
-  -help\t\t\t\tvis denne hjÃ¦lpetekst og afslut.\n\n
+  -help\t\t\t\tvis denne hjælpetekst og afslut.\n\n
 $ #CompileOptions
 # Kompileret med:\n\
   Debugging\t\t\t%s\n\
