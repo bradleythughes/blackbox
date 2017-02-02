@@ -8,31 +8,28 @@ $ #No
 $ #DirectionTitle
 # Retning
 $ #DirectionHoriz
-# Horisontal
+# Vandret
 $ #DirectionVert
-# Vertikal
+# Lodret
 
 $ #AlwaysOnTop
-# Altid øverst
+# Altid Ã¸verst
 
 $ #PlacementTitle
 # Placering
 $ #PlacementTopLeft
-# Øverste venstre hjørne
+# Ã˜verste til venstre
 $ #PlacementCenterLeft
-# Venstre i midten
+# Til venstre i midten
 $ #PlacementBottomLeft
-# Bunden til venstre
+# Nederst til venstre
 $ #PlacementTopCenter
-# Toppen i midten
+# Ã˜verst i midten
 $ #PlacementBottomCenter
-# Bunden i midten
+# Nederst i midten
 $ #PlacementTopRight
-# Øverst til højre
+# Ã˜verst til hÃ¸jre
 $ #PlacementCenterRight
-# Til højre i midten
+# Til hÃ¸jre i midten
 $ #PlacementBottomRight
-# Til højre i bunden
-
-$ #AutoHide
-# Gem automatisk
+# Nederst til hÃ¸jre
