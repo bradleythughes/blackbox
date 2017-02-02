@@ -5,16 +5,16 @@ $ #SendTo
 $ #Shade
 # Skygge
 $ #Iconify
-# Iconificeret
+# Ikonific√©r
 $ #Maximize
 # Maksimer
 $ #Raise
-# HÊv
+# H√¶v
 $ #Lower
-# SÊnk
+# S√¶nk
 $ #Stick
-# KlÊbrig
+# Kl√¶b
 $ #KillClient
-# DrÊb klient
+# Dr√¶b klient
 $ #Close
 # Luk
