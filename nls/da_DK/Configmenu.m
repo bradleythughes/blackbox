@@ -3,19 +3,19 @@ $set 3 #Configmenu
 $ #ConfigOptions
 # Indstillinger
 $ #FocusModel
-# Fokus Model
+# Fokusmodel
 $ #WindowPlacement
-# Vindueplacering
+# Vinduesplacering
 $ #ImageDithering
-# Billede Dithering
+# Billede dithering
 $ #OpaqueMove
-# Uklar vinduesflytning
+# Synlig flytning
 $ #FullMax
-# Fuld maximering
+# Fuld maksimering
 $ #FocusNew
-# Fokus nyt vindue
+# Fokus√©r nye vinduer
 $ #FocusLast
-# Fokus vindue ved skrivebords Êndring
+# Fokus√©r vindue ved skift af skrivebord
 $ #DisableBindings
 # Deaktiver tastebindinger med Scroll Lock
 $ #ClickToFocus
@@ -23,26 +23,26 @@ $ #ClickToFocus
 $ #SloppyFocus
 # Dovent fokus
 $ #AutoRaise
-# HÊv automatisk
+# H√¶v automatisk
 $ #ClickRaise
-# Klik for at hÊve
+# Klik for at h√¶ve
 $ #SmartRows
-# Intelligent placering (RÊkker)
+# Intelligent placering (r√¶kker)
 $ #SmartCols
-# Intelligent placering (S¯jler)
+# Intelligent placering (s√∏jler)
 $ #Cascade
 # Kaskade placering
 $ #LeftRight
-# Fra venstre mod h¯jre
+# Fra venstre mod h√∏jre
 $ #RightLeft
-# Fra h¯jre mod venstre
+# Fra h√∏jre mod venstre
 $ #TopBottom
 # Oppefra
 $ #BottomTop
 # Nedefra
 $ #NoDithering
-# Do not dither images
+# Dither ikke billeder
 $ #OrderedDithering
-# Use fast dither
+# Brug fast dither
 $ #FloydSteinbergDithering
-# Use high-quality dither
+# Brug dither i h√∏j kvalitet
