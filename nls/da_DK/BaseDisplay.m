@@ -7,10 +7,10 @@ $ #SignalCaught
 $ #ShuttingDown
 # lukker ned\n
 $ #Aborting
-# Avbryder... dumper kernen\n
+# afbryder... dumper kernen\n
 $ #XConnectFail
-# BaseDisplay::BaseDisplay: tilslutning til X server mislykkedes.\n"
+# BaseDisplay::BaseDisplay: tilslutning til X-server mislykkedes.\n"
 $ #CloseOnExecFail
-# BaseDisplay::BaseDisplay: kunne ikke markere skærmtilslutning som luk-ved-afslut\n
+# BaseDisplay::BaseDisplay: kunne ikke markere skÃ¦rmtilslutning som luk-ved-eksekvering\n
 $ #BadWindowRemove
-# BaseDisplay::eventLoop(): fjerner dårligt vindue fra hændelseskøen\n
+# BaseDisplay::eventLoop(): fjerner dÃ¥rligt vindue fra hÃ¦ndelseskÃ¸en\n
